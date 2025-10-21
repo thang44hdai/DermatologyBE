@@ -15,3 +15,5 @@ instance
 htmlcov/
 .mypy_cache/
 .pytest_cache/
+
+*.pth
