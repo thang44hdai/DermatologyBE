@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.core.security import decode_access_token
-from app.models.database import User
+from app.models.database import User, UserRole
 from app.schemas.user import TokenData
 
 
@@ -84,5 +84,28 @@ async def get_current_active_user(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
+        )
+    return current_user
+
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_active_user)
+) -> User:
+    """
+    Dependency to verify current user is an admin
+    
+    Args:
+        current_user: Current authenticated active user
+        
+    Returns:
+        Current admin user
+        
+    Raises:
+        HTTPException: If user is not an admin
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions. Admin access required."
         )
     return current_user

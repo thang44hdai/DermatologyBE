@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from fastapi import HTTPException, status
 
-from app.models.database import User
+from app.models.database import User, UserRole
 from app.schemas.user import UserCreate
 from app.core.security import get_password_hash, verify_password
 
@@ -37,13 +37,14 @@ class UserService:
         return user
     
     @staticmethod
-    def create_user(db: Session, user: UserCreate) -> User:
+    def create_user(db: Session, user: UserCreate, role: UserRole = UserRole.USER) -> User:
         """
         Create a new user
         
         Args:
             db: Database session
             user: User creation data
+            role: User role (default: USER)
             
         Returns:
             Created user object
@@ -69,7 +70,8 @@ class UserService:
             email=user.email,
             username=user.username,
             hashed_password=hashed_password,
-            full_name=user.full_name
+            full_name=user.full_name,
+            role=role  # Set role (default is USER)
         )
         db.add(db_user)
         db.commit()
@@ -109,3 +111,28 @@ class UserService:
         db.delete(user)
         db.commit()
         return True
+    
+    @staticmethod
+    def update_user_role(db: Session, user_id: int, new_role: UserRole) -> User:
+        """
+        Update user role (admin only operation)
+        
+        Args:
+            db: Database session
+            user_id: User ID to update
+            new_role: New role to assign
+            
+        Returns:
+            Updated user object
+        """
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user.role = new_role
+        db.commit()
+        db.refresh(user)
+        return user

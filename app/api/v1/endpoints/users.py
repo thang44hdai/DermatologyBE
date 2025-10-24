@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.core.dependencies import get_db, get_current_active_user
-from app.schemas.user import UserCreate, UserResponse
+from app.core.dependencies import get_db, get_current_active_user, get_current_admin
+from app.schemas.user import UserCreate, UserResponse, UserRoleUpdate
 from app.services.user_service import UserService
 from app.models.database import User
 
@@ -16,6 +16,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     Create a new user (Public endpoint for registration)
     
     Note: For authenticated registration, use /api/v1/auth/register
+    New users get 'user' role by default
     """
     return UserService.create_user(db=db, user=user)
 
@@ -28,6 +29,8 @@ def get_user(
 ):
     """
     Get user by ID (Protected - requires authentication)
+    
+    Users can view their own profile or any profile if they're logged in
     """
     db_user = UserService.get_user(db=db, user_id=user_id)
     if db_user is None:
@@ -43,10 +46,12 @@ def get_users(
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_admin)  # Admin only
 ):
     """
-    Get list of users (Protected - requires authentication)
+    Get list of users (Protected - Admin only)
+    
+    Only administrators can view the full list of users
     """
     users = UserService.get_users(db=db, skip=skip, limit=limit)
     return users
@@ -59,17 +64,44 @@ def delete_user(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Delete a user (Protected - requires authentication)
+    Delete a user (Protected)
     
-    Users can only delete their own account or admin can delete any
+    - Users can delete their own account
+    - Admins can delete any account
     """
-    # Optional: Add role-based access control
-    # For now, users can only delete their own account
-    if current_user.id != user_id:
+    # Check if user is admin or deleting their own account
+    from app.models.database import UserRole
+    
+    if current_user.role != UserRole.ADMIN and current_user.id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to delete this user"
+            detail="Not authorized to delete this user. You can only delete your own account."
         )
     
     UserService.delete_user(db=db, user_id=user_id)
     return {"message": "User deleted successfully"}
+
+
+@router.put("/{user_id}/role", response_model=UserResponse)
+def update_user_role(
+    user_id: int,
+    role_update: UserRoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)  # Admin only
+):
+    """
+    Update user role (Protected - Admin only)
+    
+    Only administrators can promote/demote users
+    
+    - **role**: 'user' or 'admin'
+    """
+    # Prevent admin from demoting themselves
+    if current_user.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot change your own role"
+        )
+    
+    updated_user = UserService.update_user_role(db, user_id, role_update.role)
+    return updated_user

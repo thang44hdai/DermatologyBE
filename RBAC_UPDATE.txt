@@ -1,0 +1,176 @@
+╔═══════════════════════════════════════════════════════════════╗
+║         🎭 ROLE-BASED ACCESS CONTROL ADDED! 🎭                ║
+╚═══════════════════════════════════════════════════════════════╝
+
+✅ HOÀN THÀNH - Role System
+
+┌─ Roles ────────────────────────────────────────────────────────┐
+│                                                                │
+│  👤 USER (user) - Người dùng thông thường                      │
+│     ✓ Register, login, use AI                                 │
+│     ✓ View profiles, delete own account                       │
+│     ✗ Cannot list all users                                   │
+│     ✗ Cannot manage other users                               │
+│                                                                │
+│  👑 ADMIN (admin) - Quản trị viên                              │
+│     ✓ All user permissions                                    │
+│     ✓ List all users                                          │
+│     ✓ Delete any user                                         │
+│     ✓ Promote/demote users                                    │
+│     ✗ Cannot change own role                                  │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ What Changed ─────────────────────────────────────────────────┐
+│                                                                │
+│  📝 app/models/database.py                                     │
+│     + UserRole enum (USER, ADMIN)                             │
+│     + role column in User table                               │
+│                                                                │
+│  📝 app/schemas/user.py                                        │
+│     + UserRole enum                                            │
+│     + role field in UserResponse                              │
+│     + UserRoleUpdate schema                                   │
+│                                                                │
+│  📝 app/core/dependencies.py                                   │
+│     + get_current_admin() dependency                          │
+│                                                                │
+│  📝 app/services/user_service.py                               │
+│     + role parameter in create_user()                         │
+│     + update_user_role() method                               │
+│                                                                │
+│  📝 app/api/v1/endpoints/users.py                              │
+│     + Admin-only protection for list users                    │
+│     + PUT /{id}/role endpoint                                 │
+│     + Enhanced delete logic                                   │
+│                                                                │
+│  📝 init_db.py                                                 │
+│     + Auto-create default admin account                       │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Default Admin Account ────────────────────────────────────────┐
+│                                                                │
+│  Username: admin                                               │
+│  Password: admin123                                            │
+│  Email:    admin@dermatology.com                               │
+│                                                                │
+│  ⚠️  Created automatically when running: python init_db.py     │
+│  ⚠️  CHANGE PASSWORD IMMEDIATELY after first login!            │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ API Endpoints ────────────────────────────────────────────────┐
+│                                                                │
+│  Public:                                                       │
+│    POST   /auth/register  → Register (auto role: user)        │
+│    POST   /auth/login     → Login                             │
+│                                                                │
+│  User (Authenticated):                                         │
+│    GET    /auth/me                                             │
+│    GET    /users/{id}                                          │
+│    POST   /prediction/predict                                 │
+│    DELETE /users/{id}  (own account only)                     │
+│                                                                │
+│  Admin Only:                                                   │
+│    GET    /users/  → List all users                           │
+│    PUT    /users/{id}/role  → Change role                     │
+│    DELETE /users/{id}  (any account)                          │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Quick Start ──────────────────────────────────────────────────┐
+│                                                                │
+│  1. Initialize DB (creates admin):                            │
+│     $ python init_db.py                                        │
+│                                                                │
+│  2. Login as admin:                                            │
+│     curl -X POST http://localhost:8000/api/v1/auth/login \    │
+│       -H "Content-Type: application/json" \                   │
+│       -d '{"username":"admin","password":"admin123"}'         │
+│                                                                │
+│  3. List all users:                                            │
+│     curl -X GET http://localhost:8000/api/v1/users/ \         │
+│       -H "Authorization: Bearer {admin_token}"                │
+│                                                                │
+│  4. Promote user to admin:                                     │
+│     curl -X PUT http://localhost:8000/api/v1/users/2/role \   │
+│       -H "Authorization: Bearer {admin_token}" \              │
+│       -H "Content-Type: application/json" \                   │
+│       -d '{"role":"admin"}'                                   │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Python Example ───────────────────────────────────────────────┐
+│                                                                │
+│  import requests                                               │
+│  BASE = "http://localhost:8000/api/v1"                        │
+│                                                                │
+│  # Login as admin                                              │
+│  r = requests.post(f"{BASE}/auth/login",                      │
+│      json={"username":"admin","password":"admin123"})         │
+│  admin_token = r.json()["access_token"]                       │
+│                                                                │
+│  # List users (admin only)                                     │
+│  headers = {"Authorization": f"Bearer {admin_token}"}         │
+│  r = requests.get(f"{BASE}/users/", headers=headers)          │
+│  users = r.json()                                              │
+│  print(f"Total users: {len(users)}")                          │
+│                                                                │
+│  # Promote user to admin                                       │
+│  r = requests.put(f"{BASE}/users/2/role",                     │
+│      headers=headers, json={"role": "admin"})                 │
+│  print(f"Promoted: {r.json()['username']}")                   │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Error Responses ──────────────────────────────────────────────┐
+│                                                                │
+│  403 Forbidden:                                                │
+│    {                                                           │
+│      "detail": "Not enough permissions.                       │
+│                 Admin access required."                        │
+│    }                                                           │
+│    → User tried to access admin endpoint                      │
+│                                                                │
+│  400 Bad Request:                                              │
+│    {                                                           │
+│      "detail": "You cannot change your own role"              │
+│    }                                                           │
+│    → Admin tried to change their own role                     │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Database Migration ───────────────────────────────────────────┐
+│                                                                │
+│  If you have existing database with users:                    │
+│                                                                │
+│  Option 1: Drop and recreate (loses data!)                    │
+│    $ python init_db.py --drop                                 │
+│                                                                │
+│  Option 2: Manual SQL migration                               │
+│    ALTER TABLE users                                           │
+│      ADD COLUMN role ENUM('user','admin')                     │
+│      DEFAULT 'user' NOT NULL;                                 │
+│                                                                │
+│    UPDATE users SET role = 'admin' WHERE id = 1;              │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌─ Documentation ────────────────────────────────────────────────┐
+│                                                                │
+│  📖 RBAC_GUIDE.md         → Complete RBAC documentation       │
+│  📖 AUTH_GUIDE.md          → Authentication guide             │
+│  📖 AUTHENTICATION_UPDATE.txt → Token system                  │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+╔═══════════════════════════════════════════════════════════════╗
+║  ✨ Role-based access control is ready! ✨                    ║
+║                                                                ║
+║  Initialize DB and start managing users!                      ║
+║                                                                ║
+║  $ python init_db.py                                           ║
+║  $ python run.py                                               ║
+║                                                                ║
+╚═══════════════════════════════════════════════════════════════╝

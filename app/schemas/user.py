@@ -1,6 +1,13 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
+from enum import Enum
+
+
+class UserRole(str, Enum):
+    """User role enum"""
+    USER = "user"
+    ADMIN = "admin"
 
 
 class UserBase(BaseModel):
@@ -18,6 +25,7 @@ class UserCreate(UserBase):
 class UserResponse(UserBase):
     """Response schema for user"""
     id: int
+    role: UserRole
     is_active: int
     created_at: datetime
 
@@ -54,8 +62,14 @@ class UserInDB(UserBase):
     """Schema for user in database (with hashed password)"""
     id: int
     hashed_password: str
+    role: UserRole
     is_active: int
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class UserRoleUpdate(BaseModel):
+    """Schema for updating user role (admin only)"""
+    role: UserRole = Field(..., description="New role for the user")
