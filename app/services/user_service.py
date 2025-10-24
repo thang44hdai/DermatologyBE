@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from typing import Optional, List
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 
 from app.models.database import User
 from app.schemas.user import UserCreate
@@ -9,6 +9,32 @@ from app.core.security import get_password_hash, verify_password
 
 class UserService:
     """Service for user-related operations"""
+    
+    @staticmethod
+    def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
+        """
+        Authenticate user with username/email and password
+        
+        Args:
+            db: Database session
+            username: Username or email
+            password: Plain text password
+            
+        Returns:
+            User object if authentication successful, None otherwise
+        """
+        # Try to find user by username or email
+        user = db.query(User).filter(
+            (User.username == username) | (User.email == username)
+        ).first()
+        
+        if not user:
+            return None
+        
+        if not verify_password(password, user.hashed_password):
+            return None
+        
+        return user
     
     @staticmethod
     def create_user(db: Session, user: UserCreate) -> User:
@@ -25,11 +51,17 @@ class UserService:
         # Check if user already exists
         db_user = db.query(User).filter(User.email == user.email).first()
         if db_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
         
         db_user = db.query(User).filter(User.username == user.username).first()
         if db_user:
-            raise HTTPException(status_code=400, detail="Username already taken")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken"
+            )
         
         # Create new user
         hashed_password = get_password_hash(user.password)
@@ -55,6 +87,11 @@ class UserService:
         return db.query(User).filter(User.email == email).first()
     
     @staticmethod
+    def get_user_by_username(db: Session, username: str) -> Optional[User]:
+        """Get user by username"""
+        return db.query(User).filter(User.username == username).first()
+    
+    @staticmethod
     def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[User]:
         """Get list of users"""
         return db.query(User).offset(skip).limit(limit).all()
@@ -64,7 +101,10 @@ class UserService:
         """Delete a user"""
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
         
         db.delete(user)
         db.commit()

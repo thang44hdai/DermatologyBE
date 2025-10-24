@@ -1,26 +1,36 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+from sqlalchemy.orm import Session
 from PIL import Image
 import io
 import logging
+from typing import Optional
 
 from app.schemas.prediction import PredictionResponse
 from app.services.ai_service import ai_service
 from app.config import settings
+from app.core.dependencies import get_db, get_current_active_user
+from app.models.database import User
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
-async def predict_disease(file: UploadFile = File(...)):
+@router.post("/predict", response_model=PredictionResponse)
+async def predict_disease(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_active_user)
+):
     """
-    Predict skin disease from uploaded image
+    Predict skin disease from uploaded image (Protected - requires authentication)
     
     Args:
         file: Image file (supports: jpg, jpeg, png, bmp, gif, tiff, webp)
         
     Returns:
         Prediction result with Vietnamese label
+        
+    Note: This endpoint requires authentication. Include your access token in the header.
     """
     
     # Get file extension

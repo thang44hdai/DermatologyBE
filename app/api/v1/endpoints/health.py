@@ -5,7 +5,7 @@ from app.services.ai_service import ai_service
 router = APIRouter()
 
 
-@router.get("/", response_model=HealthResponse, tags=["Health"])
+@router.get("/", response_model=HealthResponse)
 async def health_check():
     """
     Health check endpoint
@@ -19,7 +19,7 @@ async def health_check():
     }
 
 
-@router.get("/health", response_model=HealthResponse, tags=["Health"])
+@router.get("/health", response_model=HealthResponse)
 async def health():
     """Alternative health check endpoint"""
     return {

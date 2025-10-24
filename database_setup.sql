@@ -11,9 +11,6 @@ COLLATE utf8mb4_unicode_ci;
 -- Use the database
 USE dermatology_db;
 
--- Show existing tables (will be created automatically by SQLAlchemy)
-SHOW TABLES;
-
 -- =============================================
 -- Optional: Create a dedicated user (recommended for production)
 -- =============================================

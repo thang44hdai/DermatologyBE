@@ -87,23 +87,68 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Cấu hình môi trường
+### 4. Cấu hình Database MySQL với XAMPP
 
+#### Bước 1: Khởi động XAMPP
+1. Mở XAMPP Control Panel
+2. Start **Apache** và **MySQL**
+
+#### Bước 2: Tạo Database
+Có 2 cách để tạo database:
+
+**Cách 1: Sử dụng phpMyAdmin**
+1. Mở trình duyệt và truy cập: http://localhost/phpmyadmin
+2. Click vào tab "SQL"
+3. Copy và paste nội dung từ file `database_setup.sql`
+4. Click "Go" để thực thi
+
+**Cách 2: Sử dụng MySQL Command Line**
 ```bash
-# Copy file .env.example thành .env
-copy .env.example .env
+# Mở terminal và kết nối MySQL
+mysql -u root -p
+# (Nhấn Enter nếu không có password)
 
-# Chỉnh sửa .env với cấu hình của bạn
+# Chạy SQL script
+source database_setup.sql
 ```
 
-### 5. Di chuyển model file
+#### Bước 3: Cấu hình file .env
+```bash
+# Copy file .env.example thành .env (nếu có)
+cp .env.example .env
+
+# File .env đã được cấu hình sẵn với MySQL:
+DATABASE_URL=mysql+pymysql://root:@localhost:3306/dermatology_db
+```
+
+**Lưu ý:**
+- Nếu MySQL của bạn có password, sửa thành: `mysql+pymysql://root:YOUR_PASSWORD@localhost:3306/dermatology_db`
+- Nếu MySQL chạy trên port khác 3306, thay đổi port number tương ứng
+
+#### Bước 4: Tạo Tables trong Database
+```bash
+# Chạy script để tạo tables tự động
+python init_db.py
+
+# Nếu muốn xóa và tạo lại tables (CẢNH BÁO: Sẽ mất dữ liệu!)
+python init_db.py --drop
+```
+
+### 5. Cấu hình môi trường
+
+```bash
+# Copy file .env.example thành .env (nếu chưa có)
+# File .env đã được cấu hình sẵn, bạn có thể chỉnh sửa nếu cần
+```
+
+### 6. Di chuyển model file
 
 ```bash
 # Di chuyển file model vào thư mục đúng
 move skin_disease_model.pth resources\models\skin_disease_fusion_model_final.pth
 ```
 
-### 6. Chạy ứng dụng
+### 7. Chạy ứng dụng
 
 ```bash
 # Development mode (auto-reload)
@@ -126,18 +171,66 @@ Sau khi chạy server, truy cập:
 - `GET /api/v1/` - Health check
 - `GET /api/v1/health` - Health check (alternative)
 
+### 🔐 Authentication
+- `POST /api/v1/auth/register` - Đăng ký user mới
+- `POST /api/v1/auth/login` - Đăng nhập (form-data)
+- `POST /api/v1/auth/login/json` - Đăng nhập (JSON)
+- `GET /api/v1/auth/me` - Lấy thông tin user hiện tại (🔒 Protected)
+- `GET /api/v1/auth/test-token` - Test access token (🔒 Protected)
+
 ### Prediction
-- `POST /api/v1/prediction/predict` - Chẩn đoán bệnh da từ ảnh
+- `POST /api/v1/prediction/predict` - Chẩn đoán bệnh da từ ảnh (🔒 Protected)
 
 ### Users (CRUD)
-- `POST /api/v1/users/` - Tạo user mới
-- `GET /api/v1/users/{user_id}` - Lấy thông tin user
-- `GET /api/v1/users/` - Lấy danh sách users
-- `DELETE /api/v1/users/{user_id}` - Xóa user
+- `POST /api/v1/users/` - Tạo user mới (Public)
+- `GET /api/v1/users/{user_id}` - Lấy thông tin user (🔒 Protected)
+- `GET /api/v1/users/` - Lấy danh sách users (🔒 Protected)
+- `DELETE /api/v1/users/{user_id}` - Xóa user (🔒 Protected)
+
+**🔒 Protected** = Yêu cầu authentication token
+
+## 🔐 Authentication
+
+Hệ thống sử dụng JWT (JSON Web Tokens) để xác thực. Xem chi tiết tại [AUTHENTICATION.md](AUTHENTICATION.md)
+
+### Quick Start với Authentication
+
+```python
+import requests
+
+BASE_URL = "http://localhost:8000/api/v1"
+
+# 1. Register
+response = requests.post(
+    f"{BASE_URL}/auth/register",
+    json={
+        "email": "user@example.com",
+        "username": "username",
+        "password": "password123"
+    }
+)
+print(response.json())
+
+# 2. Login
+response = requests.post(
+    f"{BASE_URL}/auth/login/json",
+    json={"username": "username", "password": "password123"}
+)
+token_data = response.json()
+access_token = token_data["access_token"]
+
+# 3. Use token for protected endpoints
+headers = {"Authorization": f"Bearer {access_token}"}
+response = requests.get(f"{BASE_URL}/auth/me", headers=headers)
+print(response.json())
+```
 
 ## 🧪 Testing
 
 ```bash
+# Test Authentication System
+python test_auth.py
+
 # Chạy tests
 pytest tests/
 
@@ -147,14 +240,25 @@ pytest --cov=app tests/
 
 ## 📝 Ví dụ sử dụng
 
-### Predict Disease
+### Complete Flow với Authentication
 
 ```python
 import requests
 
-url = "http://localhost:8000/api/v1/prediction/predict"
+BASE_URL = "http://localhost:8000/api/v1"
+
+# 1. Login để lấy token
+response = requests.post(
+    f"{BASE_URL}/auth/login/json",
+    json={"username": "username", "password": "password123"}
+)
+access_token = response.json()["access_token"]
+
+# 2. Predict Disease với token
+url = f"{BASE_URL}/prediction/predict"
+headers = {"Authorization": f"Bearer {access_token}"}
 files = {'file': open('skin_image.jpg', 'rb')}
-response = requests.post(url, files=files)
+response = requests.post(url, headers=headers, files=files)
 print(response.json())
 ```
 
@@ -193,8 +297,35 @@ Response:
 
 ## 📦 Database
 
-Mặc định sử dụng SQLite cho development. Để chuyển sang PostgreSQL:
+### MySQL với XAMPP (Recommended)
+Project đã được cấu hình để sử dụng MySQL với XAMPP:
 
+**Cấu hình hiện tại:**
+```env
+DATABASE_URL=mysql+pymysql://root:@localhost:3306/dermatology_db
+```
+
+**Tables được tạo tự động:**
+- `users` - Quản lý người dùng và authentication
+- `prediction_history` - Lưu lịch sử chẩn đoán
+
+**Khởi tạo/Reset Database:**
+```bash
+# Tạo tables
+python init_db.py
+
+# Xóa và tạo lại (CẢNH BÁO: Mất dữ liệu!)
+python init_db.py --drop
+```
+
+### SQLite (Alternative)
+Để chuyển sang SQLite cho development:
+```env
+DATABASE_URL=sqlite:///./dermatology.db
+```
+
+### PostgreSQL (Production)
+Để chuyển sang PostgreSQL:
 1. Cài đặt: `pip install psycopg2-binary`
 2. Cập nhật `DATABASE_URL` trong `.env`:
    ```

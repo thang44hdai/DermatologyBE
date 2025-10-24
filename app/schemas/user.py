@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 
@@ -12,12 +12,48 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """Schema for creating a user"""
-    password: str
+    password: str = Field(..., min_length=6, description="Password must be at least 6 characters")
 
 
 class UserResponse(UserBase):
     """Response schema for user"""
     id: int
+    is_active: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Authentication Schemas
+class LoginRequest(BaseModel):
+    """Schema for login request"""
+    username: str = Field(..., description="Username or email")
+    password: str = Field(..., description="User password")
+
+
+class Token(BaseModel):
+    """Schema for token response"""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class RefreshTokenRequest(BaseModel):
+    """Schema for refresh token request"""
+    refresh_token: str = Field(..., description="Refresh token to get new access token")
+
+
+class TokenData(BaseModel):
+    """Schema for token data"""
+    username: Optional[str] = None
+    user_id: Optional[int] = None
+
+
+class UserInDB(UserBase):
+    """Schema for user in database (with hashed password)"""
+    id: int
+    hashed_password: str
     is_active: int
     created_at: datetime
 
