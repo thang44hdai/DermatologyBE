@@ -1,5 +1,6 @@
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db, get_current_active_user
@@ -30,9 +31,58 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     - **email**: Valid email address
     - **username**: Unique username
     - **password**: Password (minimum 6 characters)
-    - **full_name**: Optional full name
+    - **fullname**: Optional full name
+    - **gender**: Optional gender
+    - **avatar_url**: Optional avatar URL
+    - **date_of_birth**: Optional date of birth
     """
     return UserService.create_user(db=db, user=user)
+
+
+@router.post("/token", response_model=Token)
+def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    """
+    OAuth2 compatible token login - Use this with Swagger Authorize button
+    
+    Returns both access token and refresh token
+    
+    - **username**: Username or email
+    - **password**: User password
+    
+    Returns:
+    - **access_token**: Short-lived token for API access (30 minutes)
+    - **refresh_token**: Long-lived token for getting new access tokens (7 days)
+    """
+    user = UserService.authenticate_user(db, form_data.username, form_data.password)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Create tokens
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username, "user_id": user.id},
+        expires_delta=access_token_expires
+    )
+    
+    refresh_token_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    refresh_token = create_refresh_token(
+        data={"sub": user.username, "user_id": user.id},
+        expires_delta=refresh_token_expires
+    )
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
 
 
 @router.post("/login", response_model=Token)
@@ -41,7 +91,7 @@ def login(
     db: Session = Depends(get_db)
 ):
     """
-    Login with JSON credentials
+    Login with JSON credentials (alternative to /token)
     
     Returns both access token and refresh token
     
@@ -59,12 +109,6 @@ def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
         )
     
     # Create tokens
@@ -124,12 +168,6 @@ def refresh_access_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
         )
     
     # Create new tokens

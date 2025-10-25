@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from app.db.session import engine, Base, SessionLocal
-from app.models.database import User, PredictionHistory, UserRole
+from app.models.database import User, UserRole
 from app.core.security import get_password_hash
 
 

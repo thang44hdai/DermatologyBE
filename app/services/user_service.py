@@ -31,7 +31,7 @@ class UserService:
         if not user:
             return None
         
-        if not verify_password(password, user.hashed_password):
+        if not verify_password(password, user.password):
             return None
         
         return user
@@ -69,9 +69,12 @@ class UserService:
         db_user = User(
             email=user.email,
             username=user.username,
-            hashed_password=hashed_password,
-            full_name=user.full_name,
-            role=role  # Set role (default is USER)
+            password=hashed_password,
+            fullname=user.fullname,
+            role=role,  # Set role (default is USER)
+            gender=user.gender,
+            avatar_url=user.avatar_url,
+            date_of_birth=user.date_of_birth
         )
         db.add(db_user)
         db.commit()

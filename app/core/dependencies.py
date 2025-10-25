@@ -9,8 +9,8 @@ from app.models.database import User, UserRole
 from app.schemas.user import TokenData
 
 
-# OAuth2 scheme for token authentication (updated to use /login endpoint)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+# OAuth2 scheme for token authentication (updated to use /token endpoint for Swagger)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/token")
 
 
 def get_db() -> Generator:
@@ -76,15 +76,7 @@ async def get_current_active_user(
         
     Returns:
         Current active user
-        
-    Raises:
-        HTTPException: If user is inactive
     """
-    if not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
-        )
     return current_user
 
 

@@ -14,7 +14,10 @@ class UserBase(BaseModel):
     """Base user schema"""
     email: EmailStr
     username: str
-    full_name: Optional[str] = None
+    fullname: Optional[str] = None
+    gender: Optional[str] = None
+    avatar_url: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
 
 
 class UserCreate(UserBase):
@@ -26,8 +29,8 @@ class UserResponse(UserBase):
     """Response schema for user"""
     id: int
     role: UserRole
-    is_active: int
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -61,10 +64,10 @@ class TokenData(BaseModel):
 class UserInDB(UserBase):
     """Schema for user in database (with hashed password)"""
     id: int
-    hashed_password: str
+    password: str
     role: UserRole
-    is_active: int
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

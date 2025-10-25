@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 
 class PredictionItem(BaseModel):
@@ -16,6 +16,9 @@ class PredictionResponse(BaseModel):
     label_vi: str
     confidence: float
     all_predictions: List[PredictionItem]
+    scan_id: Optional[int] = None
+    diagnosis_id: Optional[int] = None
+    user_id: Optional[int] = None
 
 
 class HealthResponse(BaseModel):
