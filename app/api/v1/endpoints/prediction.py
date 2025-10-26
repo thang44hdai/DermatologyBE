@@ -11,7 +11,7 @@ from app.schemas.prediction import PredictionResponse
 from app.services.ai_service import ai_service
 from app.config import settings
 from app.core.dependencies import get_db, get_current_user
-from app.models.database import User, Scans, DiagnosisHistory
+from app.models.database import User, Scans, DiagnosisHistory, Disease
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -86,33 +86,42 @@ async def predict_disease(
         # Predict using AI service
         prediction_result = ai_service.predict(image)
         
-        # Get or create diagnosis record
+        # Get or create disease record
         disease_name = prediction_result['label_en']
-        diagnosis = db.query(DiagnosisHistory).filter(DiagnosisHistory.disease_name == disease_name).first()
+        disease = db.query(Disease).filter(Disease.disease_name == disease_name).first()
         
-        if not diagnosis:
-            # Create new diagnosis record if not exists
-            diagnosis = DiagnosisHistory(
+        if not disease:
+            # Create new disease record if not exists
+            disease = Disease(
                 disease_name=disease_name,
-                description=f"AI-detected: {prediction_result['label_vi']}",
-                severity_level="medium"  # Default severity
+                description=f"AI-detected: {prediction_result['label_vi']}"
             )
-            db.add(diagnosis)
+            db.add(disease)
             db.commit()
-            db.refresh(diagnosis)
+            db.refresh(disease)
         
         # Create scan record
         scan = Scans(
             user_id=current_user.id,
             image_url=file.filename or "uploaded_image.jpg",  # In production, save to storage and store URL
-            ai_model_version=getattr(settings, 'AI_MODEL_VERSION', '1.0'),
-            diagnosis_id=diagnosis.id,
-            confidence=prediction_result['confidence'],
-            scan_date=datetime.utcnow()
+            scan_date=datetime.utcnow(),
+            status="completed",
+            disease_id=disease.id
         )
         db.add(scan)
         db.commit()
         db.refresh(scan)
+        
+        # Create diagnosis history record
+        diagnosis_history = DiagnosisHistory(
+            user_id=current_user.id,
+            scans_id=scan.id,
+            disease_id=disease.id,
+            note=f"Confidence: {prediction_result['confidence']:.2%}"
+        )
+        db.add(diagnosis_history)
+        db.commit()
+        db.refresh(diagnosis_history)
         
         logger.info(
             f"User {current_user.email} | File: {file.filename} | "
@@ -120,12 +129,16 @@ async def predict_disease(
             f"Scan ID: {scan.id}"
         )
         
-        # Add scan_id and diagnosis_id to response
+        # Return response with success flag
         response_data = {
-            **prediction_result,
-            "scan_id": scan.id,
-            "diagnosis_id": diagnosis.id,
-            "user_id": current_user.id
+            "success": True,
+            "data": {
+                **prediction_result,
+                "scan_id": scan.id,
+                "disease_id": disease.id,
+                "diagnosis_history_id": diagnosis_history.id,
+                "user_id": current_user.id
+            }
         }
         
         return response_data
@@ -171,18 +184,30 @@ async def get_scan_history(
     
     result = []
     for scan in scans:
-        diagnosis = db.query(DiagnosisHistory).filter(DiagnosisHistory.id == scan.diagnosis_id).first()
+        # Get disease information
+        disease = db.query(Disease).filter(Disease.id == scan.disease_id).first()
+        
+        # Get diagnosis history for this scan
+        diagnosis_history = db.query(DiagnosisHistory).filter(
+            DiagnosisHistory.scans_id == scan.id
+        ).first()
+        
         result.append({
             "scan_id": scan.id,
             "image_url": scan.image_url,
-            "confidence": scan.confidence,
             "scan_date": scan.scan_date,
-            "diagnosis": {
-                "id": diagnosis.id if diagnosis else None,
-                "disease_name": diagnosis.disease_name if diagnosis else None,
-                "description": diagnosis.description if diagnosis else None,
-                "severity_level": diagnosis.severity_level if diagnosis else None
-            } if diagnosis else None
+            "status": scan.status,
+            "disease": {
+                "id": disease.id if disease else None,
+                "disease_name": disease.disease_name if disease else None,
+                "description": disease.description if disease else None,
+                "treatment": disease.treatment if disease else None
+            } if disease else None,
+            "diagnosis_history": {
+                "id": diagnosis_history.id if diagnosis_history else None,
+                "note": diagnosis_history.note if diagnosis_history else None,
+                "created_at": diagnosis_history.created_at if diagnosis_history else None
+            } if diagnosis_history else None
         })
     
     return {
@@ -218,24 +243,33 @@ async def get_scan_detail(
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
     
-    diagnosis = db.query(DiagnosisHistory).filter(DiagnosisHistory.id == scan.diagnosis_id).first()
+    # Get disease information
+    disease = db.query(Disease).filter(Disease.id == scan.disease_id).first()
+    
+    # Get diagnosis history for this scan
+    diagnosis_history = db.query(DiagnosisHistory).filter(
+        DiagnosisHistory.scans_id == scan.id
+    ).first()
     
     return {
         "scan_id": scan.id,
         "user_id": scan.user_id,
         "image_url": scan.image_url,
-        "ai_model_version": scan.ai_model_version,
-        "confidence": scan.confidence,
         "scan_date": scan.scan_date,
-        "diagnosis": {
-            "id": diagnosis.id,
-            "disease_name": diagnosis.disease_name,
-            "description": diagnosis.description,
-            "symptoms": diagnosis.symptoms,
-            "treatment": diagnosis.treatment,
-            "severity_level": diagnosis.severity_level,
-            "created_at": diagnosis.created_at
-        } if diagnosis else None
+        "status": scan.status,
+        "disease": {
+            "id": disease.id,
+            "disease_name": disease.disease_name,
+            "description": disease.description,
+            "treatment": disease.treatment,
+            "image_url": disease.image_url,
+            "created_at": disease.created_at
+        } if disease else None,
+        "diagnosis_history": {
+            "id": diagnosis_history.id,
+            "note": diagnosis_history.note,
+            "created_at": diagnosis_history.created_at
+        } if diagnosis_history else None
     }
 
 

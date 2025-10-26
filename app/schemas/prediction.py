@@ -9,16 +9,22 @@ class PredictionItem(BaseModel):
     confidence: float
 
 
-class PredictionResponse(BaseModel):
-    """Response model for disease prediction"""
-    success: bool
+class PredictionData(BaseModel):
+    """Prediction data with all details"""
     label_en: str
     label_vi: str
     confidence: float
     all_predictions: List[PredictionItem]
-    scan_id: Optional[int] = None
-    diagnosis_id: Optional[int] = None
-    user_id: Optional[int] = None
+    scan_id: int
+    disease_id: int
+    diagnosis_history_id: int
+    user_id: int
+
+
+class PredictionResponse(BaseModel):
+    """Response model for disease prediction"""
+    success: bool
+    data: PredictionData
 
 
 class HealthResponse(BaseModel):
