@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import logging
+import os
+from pathlib import Path
 
 from app.config import settings
 from app.api.v1.router import api_router
@@ -17,6 +20,12 @@ logger = logging.getLogger(__name__)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
+
+# Create upload directories if not exist
+Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+Path(settings.DISEASE_IMAGES_DIR).mkdir(parents=True, exist_ok=True)
+Path(settings.MEDICINE_IMAGES_DIR).mkdir(parents=True, exist_ok=True)
+Path(settings.SCAN_IMAGES_DIR).mkdir(parents=True, exist_ok=True)
 
 # ==========================================
 # FASTAPI APP
@@ -67,6 +76,9 @@ async def shutdown_event():
 
 # Include API v1 router
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+# Mount static files for serving uploaded images
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ==========================================
 # RUN SERVER

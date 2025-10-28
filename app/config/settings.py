@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
     ALLOWED_EXTENSIONS: set = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.tif', '.webp', '.jfif'}
     
+    # Upload directories
+    UPLOAD_DIR: str = "uploads"
+    DISEASE_IMAGES_DIR: str = "uploads/diseases"
+    MEDICINE_IMAGES_DIR: str = "uploads/medicines"
+    SCAN_IMAGES_DIR: str = "uploads/scans"
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

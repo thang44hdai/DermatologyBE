@@ -17,3 +17,7 @@ htmlcov/
 .pytest_cache/
 
 *.pth
+
+# Uploaded files
+/uploads/
+!uploads/.gitkeep
