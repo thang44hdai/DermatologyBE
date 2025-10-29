@@ -15,7 +15,6 @@ from .database import (
     Scans,
     DiagnosisHistory,
     Disease,
-    Symptoms,
     
     # Medicine & Pharmacies
     Medicines,
@@ -54,7 +53,6 @@ __all__ = [
     "Scans",
     "DiagnosisHistory",
     "Disease",
-    "Symptoms",
     
     # Medicine & Pharmacies
     "Medicines",

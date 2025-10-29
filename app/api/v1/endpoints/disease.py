@@ -22,6 +22,7 @@ router = APIRouter()
 async def create_disease(
     disease_name: str = Form(..., description="Disease name"),
     description: Optional[str] = Form(None, description="Disease description"),
+    symptoms: Optional[str] = Form(None, description="Disease symptoms"),
     treatment: Optional[str] = Form(None, description="Treatment information"),
     image: Optional[UploadFile] = File(None, description="Disease image file"),
     db: Session = Depends(get_db),
@@ -35,6 +36,7 @@ async def create_disease(
     Args:
         disease_name: Disease name (required)
         description: Disease description (optional)
+        symptoms: Disease symptoms (optional)
         treatment: Treatment information (optional)
         image: Disease image file (optional) - JPG, PNG, etc.
         
@@ -53,6 +55,7 @@ async def create_disease(
     disease_data = DiseaseCreate(
         disease_name=disease_name,
         description=description,
+        symptoms=symptoms,
         treatment=treatment,
         image_url=image_url
     )
@@ -128,7 +131,6 @@ async def get_disease_detail(
     **Requires Admin Role**
     
     Returns disease information with counts of:
-    - Related symptoms
     - Related medicines
     - Diagnosis history records
     
@@ -146,6 +148,7 @@ async def update_disease(
     disease_id: int,
     disease_name: Optional[str] = Form(None, description="Disease name"),
     description: Optional[str] = Form(None, description="Disease description"),
+    symptoms: Optional[str] = Form(None, description="Disease symptoms"),
     treatment: Optional[str] = Form(None, description="Treatment information"),
     image: Optional[UploadFile] = File(None, description="Disease image file"),
     db: Session = Depends(get_db),
@@ -160,6 +163,7 @@ async def update_disease(
         disease_id: Disease ID to update
         disease_name: Disease name (optional)
         description: Disease description (optional)
+        symptoms: Disease symptoms (optional)
         treatment: Treatment information (optional)
         image: Disease image file (optional) - will replace existing image
         
@@ -185,6 +189,8 @@ async def update_disease(
         update_data["disease_name"] = disease_name
     if description is not None:
         update_data["description"] = description
+    if symptoms is not None:
+        update_data["symptoms"] = symptoms
     if treatment is not None:
         update_data["treatment"] = treatment
     if image_url is not None:
@@ -211,7 +217,7 @@ async def delete_disease(
     
     **Requires Admin Role**
     
-    Note: Cannot delete if disease has related symptoms, medicines, or diagnosis records
+    Note: Cannot delete if disease has related medicines or diagnosis records
     
     Args:
         disease_id: Disease ID to delete

@@ -7,6 +7,7 @@ class DiseaseBase(BaseModel):
     """Base disease schema"""
     disease_name: str = Field(..., min_length=1, max_length=255, description="Disease name")
     description: Optional[str] = Field(None, description="Disease description")
+    symptoms: Optional[str] = Field(None, description="Disease symptoms")
     treatment: Optional[str] = Field(None, description="Treatment information")
     image_url: Optional[str] = Field(None, max_length=255, description="Disease image URL")
 
@@ -20,6 +21,7 @@ class DiseaseUpdate(BaseModel):
     """Schema for updating a disease"""
     disease_name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
+    symptoms: Optional[str] = None
     treatment: Optional[str] = None
     image_url: Optional[str] = Field(None, max_length=255)
 
@@ -43,7 +45,6 @@ class DiseaseListResponse(BaseModel):
 
 class DiseaseDetailResponse(DiseaseResponse):
     """Detailed disease response with related info counts"""
-    symptoms_count: int = Field(..., description="Number of symptoms")
     medicines_count: int = Field(..., description="Number of medicines")
     diagnosis_count: int = Field(..., description="Number of diagnoses")
     

@@ -73,6 +73,7 @@ class Disease(Base):
     id = Column(Integer, primary_key=True, index=True)
     disease_name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
+    symptoms = Column(Text, nullable=True)  # Symptoms as text field
     treatment = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     image_url = Column(String(255), nullable=True)
@@ -80,20 +81,7 @@ class Disease(Base):
     # Relationships
     scans = relationship("Scans", back_populates="disease")
     diagnosis_history = relationship("DiagnosisHistory", back_populates="disease")
-    symptoms = relationship("Symptoms", back_populates="disease")
     medicines = relationship("Medicines", back_populates="disease")
-
-
-class Symptoms(Base):
-    __tablename__ = "symptoms"
-
-    id = Column(Integer, primary_key=True, index=True)
-    disease_id = Column(Integer, ForeignKey("diseases.id"), nullable=False)
-    name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=False)
-
-    # Relationships
-    disease = relationship("Disease", back_populates="symptoms")
 
 
 class Medicines(Base):

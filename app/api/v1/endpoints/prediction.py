@@ -86,14 +86,21 @@ async def predict_disease(
         # Predict using AI service
         prediction_result = ai_service.predict(image)
         
-        # Get or create disease record
-        disease_name = prediction_result['label_en']
-        disease = db.query(Disease).filter(Disease.disease_name == disease_name).first()
+        # Search disease by Vietnamese label (label_vi)
+        disease = db.query(Disease).filter(
+            Disease.disease_name == prediction_result['label_vi']
+        ).first()
+        
+        if not disease:
+            # Fallback: search by English label if Vietnamese name not found
+            disease = db.query(Disease).filter(
+                Disease.disease_name == prediction_result['label_en']
+            ).first()
         
         if not disease:
             # Create new disease record if not exists
             disease = Disease(
-                disease_name=disease_name,
+                disease_name=prediction_result['label_vi'],
                 description=f"AI-detected: {prediction_result['label_vi']}"
             )
             db.add(disease)
@@ -129,13 +136,23 @@ async def predict_disease(
             f"Scan ID: {scan.id}"
         )
         
-        # Return response with success flag
+        # Return response with full disease information
         response_data = {
             "success": True,
             "data": {
-                **prediction_result,
+                "label_en": prediction_result['label_en'],
+                "label_vi": prediction_result['label_vi'],
+                "confidence": prediction_result['confidence'],
                 "scan_id": scan.id,
-                "disease_id": disease.id,
+                "disease": {
+                    "id": disease.id,
+                    "disease_name": disease.disease_name,
+                    "description": disease.description,
+                    "symptoms": disease.symptoms,
+                    "treatment": disease.treatment,
+                    "image_url": disease.image_url,
+                    "created_at": disease.created_at
+                },
                 "diagnosis_history_id": diagnosis_history.id,
                 "user_id": current_user.id
             }

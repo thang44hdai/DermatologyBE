@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from typing import List, Tuple, Optional
 
-from app.models.database import Disease, Symptoms, Medicines, DiagnosisHistory
+from app.models.database import Disease, Medicines, DiagnosisHistory
 from app.schemas.disease import DiseaseCreate, DiseaseUpdate
 
 
@@ -81,7 +81,6 @@ class DiseaseService:
             )
         
         # Count related records
-        symptoms_count = db.query(Symptoms).filter(Symptoms.disease_id == disease_id).count()
         medicines_count = db.query(Medicines).filter(Medicines.disease_id == disease_id).count()
         diagnosis_count = db.query(DiagnosisHistory).filter(DiagnosisHistory.disease_id == disease_id).count()
         
@@ -89,10 +88,10 @@ class DiseaseService:
             "id": disease.id,
             "disease_name": disease.disease_name,
             "description": disease.description,
+            "symptoms": disease.symptoms,
             "treatment": disease.treatment,
             "image_url": disease.image_url,
             "created_at": disease.created_at,
-            "symptoms_count": symptoms_count,
             "medicines_count": medicines_count,
             "diagnosis_count": diagnosis_count
         }
@@ -197,14 +196,13 @@ class DiseaseService:
             )
         
         # Check if disease has related records
-        symptoms_count = db.query(Symptoms).filter(Symptoms.disease_id == disease_id).count()
         medicines_count = db.query(Medicines).filter(Medicines.disease_id == disease_id).count()
         diagnosis_count = db.query(DiagnosisHistory).filter(DiagnosisHistory.disease_id == disease_id).count()
         
-        if symptoms_count > 0 or medicines_count > 0 or diagnosis_count > 0:
+        if medicines_count > 0 or diagnosis_count > 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot delete disease. It has {symptoms_count} symptoms, {medicines_count} medicines, and {diagnosis_count} diagnosis records. Remove related records first."
+                detail=f"Cannot delete disease. It has {medicines_count} medicines and {diagnosis_count} diagnosis records. Remove related records first."
             )
         
         db.delete(disease)
