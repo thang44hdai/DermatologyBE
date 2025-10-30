@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -81,14 +81,15 @@ class Disease(Base):
     # Relationships
     scans = relationship("Scans", back_populates="disease")
     diagnosis_history = relationship("DiagnosisHistory", back_populates="disease")
-    medicines = relationship("Medicines", back_populates="disease")
+    # Many-to-Many with Medicines through MedicineDiseaseLink
+    medicine_links = relationship("MedicineDiseaseLink", back_populates="disease", cascade="all, delete-orphan")
+    medicines = relationship("Medicines", secondary="medicine_disease_link", back_populates="diseases", viewonly=True)
 
 
 class Medicines(Base):
     __tablename__ = "medicines"
 
     id = Column(Integer, primary_key=True, index=True)
-    disease_id = Column(Integer, ForeignKey("diseases.id"), nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
     generic_name = Column(String(255), nullable=True)
@@ -97,12 +98,32 @@ class Medicines(Base):
     side_effects = Column(Text, nullable=True)
     suitable_for = Column(String(10), nullable=True)
     price = Column(Float, nullable=True)
-    image_url = Column(String(255), nullable=True)
+    image_url = Column(Text, nullable=True)  # JSON array of image URLs
+    created_at = Column(DateTime, server_default=func.now())
+
+    # Relationships - Many-to-Many with Disease through MedicineDiseaseLink
+    disease_links = relationship("MedicineDiseaseLink", back_populates="medicine", cascade="all, delete-orphan")
+    diseases = relationship("Disease", secondary="medicine_disease_link", back_populates="medicines", viewonly=True)
+    medicine_pharmacies = relationship("MedicinePharmacyLink", back_populates="medicine")
+
+
+# Medicine-Disease Link (Many-to-Many relationship)
+class MedicineDiseaseLink(Base):
+    __tablename__ = "medicine_disease_link"
+
+    id = Column(Integer, primary_key=True, index=True)
+    medicine_id = Column(Integer, ForeignKey("medicines.id", ondelete="CASCADE"), nullable=False)
+    disease_id = Column(Integer, ForeignKey("diseases.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationships
-    disease = relationship("Disease", back_populates="medicines")
-    medicine_pharmacies = relationship("MedicinePharmacyLink", back_populates="medicine")
+    medicine = relationship("Medicines", back_populates="disease_links")
+    disease = relationship("Disease", back_populates="medicine_links")
+
+    # Unique constraint to prevent duplicate links
+    __table_args__ = (
+        UniqueConstraint('medicine_id', 'disease_id', name='unique_medicine_disease'),
+    )
 
 
 class Pharmacies(Base):

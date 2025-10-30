@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -35,18 +35,36 @@ class DiseaseResponse(DiseaseBase):
         from_attributes = True
 
 
-class DiseaseListResponse(BaseModel):
-    """Response schema for list of diseases"""
-    diseases: list[DiseaseResponse]
-    total: int
-    skip: int
-    limit: int
+class MedicineInfo(BaseModel):
+    """Basic medicine info for disease response"""
+    id: int
+    name: str
+    generic_name: Optional[str] = None
+    type: Optional[str] = None
+    price: Optional[int] = None
+    image_url: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
 
 
 class DiseaseDetailResponse(DiseaseResponse):
     """Detailed disease response with related info counts"""
     medicines_count: int = Field(..., description="Number of medicines")
     diagnosis_count: int = Field(..., description="Number of diagnoses")
+    medicines: List[MedicineInfo] = Field(default_factory=list, description="List of medicines for this disease")
     
     class Config:
         from_attributes = True
+
+
+class DiseaseListResponse(BaseModel):
+    """Response schema for list of diseases"""
+    diseases: list[DiseaseDetailResponse]
+    total: int
+    skip: int
+    limit: int
+
+
+# Update forward references
+DiseaseDetailResponse.model_rebuild()

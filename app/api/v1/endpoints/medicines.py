@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
+import json
 
 from app.core.dependencies import get_db, get_current_admin
 from app.services.medicine_service import medicine_service
@@ -28,60 +29,78 @@ router = APIRouter()
 async def create_medicine(
     name: str = Form(..., description="Medicine name"),
     description: str = Form(..., description="Medicine description"),
-    disease_id: int = Form(..., description="Related disease ID"),
+    disease_ids: str = Form(..., description="Comma-separated disease IDs (e.g., '1,2,3')"),
     generic_name: Optional[str] = Form(None, description="Generic/scientific name"),
     type: Optional[str] = Form(None, description="Medicine type (tablet, syrup, etc.)"),
     dosage: Optional[str] = Form(None, description="Dosage information"),
     side_effects: Optional[str] = Form(None, description="Side effects"),
     suitable_for: Optional[str] = Form(None, description="Suitable for (adults/children)"),
     price: Optional[float] = Form(None, description="Base price"),
-    image: Optional[UploadFile] = File(None, description="Medicine image file"),
+    images: List[UploadFile] = File(None, description="Medicine image files (multiple)"),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin)
 ):
     """
-    Create a new medicine with optional image upload
+    Create a new medicine with optional multiple image uploads
     
     **Requires Admin Role**
     
     Args:
         name: Medicine name (required)
         description: Medicine description (required)
-        disease_id: Related disease ID (required)
+        disease_ids: Comma-separated disease IDs like "1,2,3" (required, at least one)
         generic_name: Generic/scientific name (optional)
         type: Medicine type like tablet, syrup (optional)
         dosage: Dosage information (optional)
         side_effects: Side effects (optional)
         suitable_for: Suitable for adults/children (optional)
         price: Base price (optional)
-        image: Medicine image file (optional) - JPG, PNG, etc.
+        images: Medicine image files (optional, multiple) - JPG, PNG, etc.
         
     Returns:
         Created medicine information
     """
-    # Save image if provided
-    image_url = None
-    if image:
-        image_url = await file_upload_service.save_image(
-            file=image,
-            upload_dir=settings.MEDICINE_IMAGES_DIR,
-            prefix="medicine"
+    # Parse disease_ids from comma-separated string
+    try:
+        disease_ids_list = [int(id.strip()) for id in disease_ids.split(',')]
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid disease_ids format. Use comma-separated integers like '1,2,3'"
         )
+    
+    if not disease_ids_list:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one disease ID is required"
+        )
+    
+    # Save images if provided
+    image_urls = []
+    if images:
+        for image in images:
+            image_url = await file_upload_service.save_image(
+                file=image,
+                upload_dir=settings.MEDICINE_IMAGES_DIR,
+                prefix="medicine"
+            )
+            image_urls.append(image_url)
     
     medicine_data = MedicineCreate(
         name=name,
         description=description,
-        disease_id=disease_id,
+        disease_ids=disease_ids_list,
         generic_name=generic_name,
         type=type,
         dosage=dosage,
         side_effects=side_effects,
         suitable_for=suitable_for,
         price=price,
-        image_url=image_url
+        images=image_urls if image_urls else None
     )
     
-    return medicine_service.create_medicine(db, medicine_data)
+    medicine = medicine_service.create_medicine(db, medicine_data, image_urls=image_urls)
+    return MedicineResponse.from_orm_model(medicine)
 
 
 @router.get("/", response_model=MedicineListResponse)
@@ -118,8 +137,11 @@ async def get_medicines(
         medicine_type=medicine_type
     )
     
+    # Convert to response models with JSON parsing
+    medicine_responses = [MedicineResponse.from_orm_model(medicine) for medicine in medicines]
+    
     return {
-        "medicines": medicines,
+        "medicines": medicine_responses,
         "total": total,
         "skip": skip,
         "limit": limit
@@ -143,7 +165,8 @@ async def get_medicine(
     Returns:
         Medicine information
     """
-    return medicine_service.get_medicine(db, medicine_id)
+    medicine = medicine_service.get_medicine(db, medicine_id)
+    return MedicineResponse.from_orm_model(medicine)
 
 
 @router.put("/{medicine_id}", response_model=MedicineResponse)
@@ -151,19 +174,20 @@ async def update_medicine(
     medicine_id: int,
     name: Optional[str] = Form(None, description="Medicine name"),
     description: Optional[str] = Form(None, description="Medicine description"),
-    disease_id: Optional[int] = Form(None, description="Related disease ID"),
+    disease_ids: Optional[str] = Form(None, description="Comma-separated disease IDs (e.g., '1,2,3')"),
     generic_name: Optional[str] = Form(None, description="Generic/scientific name"),
     type: Optional[str] = Form(None, description="Medicine type"),
     dosage: Optional[str] = Form(None, description="Dosage information"),
     side_effects: Optional[str] = Form(None, description="Side effects"),
     suitable_for: Optional[str] = Form(None, description="Suitable for"),
     price: Optional[float] = Form(None, description="Base price"),
-    image: Optional[UploadFile] = File(None, description="Medicine image file"),
+    images: List[UploadFile] = File(None, description="Medicine image files (multiple) - will replace existing images"),
+    keep_existing_images: bool = Form(True, description="Keep existing images and append new ones"),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin)
 ):
     """
-    Update medicine information with optional image upload
+    Update medicine information with optional multiple image uploads
     
     **Requires Admin Role**
     
@@ -171,30 +195,65 @@ async def update_medicine(
         medicine_id: Medicine ID to update
         name: Medicine name (optional)
         description: Medicine description (optional)
-        disease_id: Related disease ID (optional)
+        disease_ids: Comma-separated disease IDs like "1,2,3" (optional)
         generic_name: Generic/scientific name (optional)
         type: Medicine type (optional)
         dosage: Dosage information (optional)
         side_effects: Side effects (optional)
         suitable_for: Suitable for (optional)
         price: Base price (optional)
-        image: Medicine image file (optional) - will replace existing image
+        images: Medicine image files (optional, multiple) - new images to add or replace
+        keep_existing_images: If True, append new images to existing ones; if False, replace all images
         
     Returns:
         Updated medicine information
     """
-    # Get existing medicine to get old image path
+    # Get existing medicine
     existing_medicine = medicine_service.get_medicine(db, medicine_id)
     
-    # Handle image update
-    image_url = None
-    if image:
-        image_url = await file_upload_service.update_image(
-            file=image,
-            old_file_path=existing_medicine.image_url,
-            upload_dir=settings.MEDICINE_IMAGES_DIR,
-            prefix="medicine"
-        )
+    # Parse disease_ids if provided
+    disease_ids_list = None
+    if disease_ids is not None:
+        try:
+            disease_ids_list = [int(id.strip()) for id in disease_ids.split(',')]
+            if not disease_ids_list:
+                raise ValueError("Empty list")
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid disease_ids format. Use comma-separated integers like '1,2,3'"
+            )
+    
+    # Handle image updates
+    image_urls = None
+    if images:
+        # Parse existing images
+        existing_images = []
+        if existing_medicine.image_url:
+            try:
+                existing_images = json.loads(existing_medicine.image_url)
+            except:
+                if existing_medicine.image_url:
+                    existing_images = [existing_medicine.image_url]
+        
+        # Save new images
+        new_image_urls = []
+        for image in images:
+            image_url = await file_upload_service.save_image(
+                file=image,
+                upload_dir=settings.MEDICINE_IMAGES_DIR,
+                prefix="medicine"
+            )
+            new_image_urls.append(image_url)
+        
+        # Combine or replace images
+        if keep_existing_images:
+            image_urls = existing_images + new_image_urls
+        else:
+            # Delete old images if replacing
+            for old_image in existing_images:
+                await file_upload_service.delete_image(old_image)
+            image_urls = new_image_urls
     
     # Build update data
     update_data = {}
@@ -202,8 +261,8 @@ async def update_medicine(
         update_data["name"] = name
     if description is not None:
         update_data["description"] = description
-    if disease_id is not None:
-        update_data["disease_id"] = disease_id
+    if disease_ids_list is not None:
+        update_data["disease_ids"] = disease_ids_list
     if generic_name is not None:
         update_data["generic_name"] = generic_name
     if type is not None:
@@ -216,17 +275,16 @@ async def update_medicine(
         update_data["suitable_for"] = suitable_for
     if price is not None:
         update_data["price"] = price
-    if image_url is not None:
-        update_data["image_url"] = image_url
     
-    if not update_data:
+    if not update_data and image_urls is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No fields to update"
         )
     
     medicine_update = MedicineUpdate(**update_data)
-    return medicine_service.update_medicine(db, medicine_id, medicine_update)
+    medicine = medicine_service.update_medicine(db, medicine_id, medicine_update, image_urls=image_urls)
+    return MedicineResponse.from_orm_model(medicine)
 
 
 @router.delete("/{medicine_id}")
@@ -236,7 +294,7 @@ async def delete_medicine(
     current_admin: User = Depends(get_current_admin)
 ):
     """
-    Delete a medicine (and its image)
+    Delete a medicine (and all its images)
     
     **Requires Admin Role**
     
@@ -248,15 +306,22 @@ async def delete_medicine(
     Returns:
         Success message
     """
-    # Get medicine to get image path
+    # Get medicine to get image paths
     medicine = medicine_service.get_medicine(db, medicine_id)
     
     # Delete medicine from database
     medicine_service.delete_medicine(db, medicine_id)
     
-    # Delete image file
+    # Delete all image files
     if medicine.image_url:
-        file_upload_service.delete_image(medicine.image_url)
+        try:
+            image_urls = json.loads(medicine.image_url)
+            for image_url in image_urls:
+                file_upload_service.delete_image(image_url)
+        except:
+            # Fallback for single image
+            if medicine.image_url:
+                file_upload_service.delete_image(medicine.image_url)
     
     return {
         "success": True,

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -15,8 +15,8 @@ class MedicineBase(BaseModel):
     side_effects: Optional[str] = Field(None, description="Side effects")
     suitable_for: Optional[str] = Field(None, max_length=10, description="Suitable for (e.g., adults, children)")
     price: Optional[float] = Field(None, ge=0, description="Base price")
-    image_url: Optional[str] = Field(None, max_length=255, description="Medicine image URL")
-    disease_id: int = Field(..., description="Related disease ID")
+    images: Optional[List[str]] = Field(None, description="List of medicine image URLs")
+    disease_ids: List[int] = Field(..., min_items=1, description="List of related disease IDs")
 
 
 class MedicineCreate(MedicineBase):
@@ -34,14 +34,55 @@ class MedicineUpdate(BaseModel):
     side_effects: Optional[str] = None
     suitable_for: Optional[str] = Field(None, max_length=10)
     price: Optional[float] = Field(None, ge=0)
-    image_url: Optional[str] = Field(None, max_length=255)
-    disease_id: Optional[int] = None
+    images: Optional[List[str]] = None
+    disease_ids: Optional[List[int]] = Field(None, min_items=1, description="List of related disease IDs")
 
 
-class MedicineResponse(MedicineBase):
+class MedicineResponse(BaseModel):
     """Response schema for medicine"""
     id: int
+    name: str
+    description: str
+    generic_name: Optional[str]
+    type: Optional[str]
+    dosage: Optional[str]
+    side_effects: Optional[str]
+    suitable_for: Optional[str]
+    price: Optional[float]
+    images: Optional[List[str]]
+    disease_ids: List[int]
     created_at: datetime
+    
+    @classmethod
+    def from_orm_model(cls, medicine):
+        """Convert ORM model to response schema with JSON parsing"""
+        import json
+        
+        images = None
+        if medicine.image_url:
+            try:
+                images = json.loads(medicine.image_url) if isinstance(medicine.image_url, str) else medicine.image_url
+            except:
+                # Fallback: treat as single image URL
+                images = [medicine.image_url]
+        
+        # Get disease IDs from the many-to-many relationship
+        disease_ids = [link.disease_id for link in medicine.disease_links]
+        
+        return cls(
+            id=medicine.id,
+            name=medicine.name,
+            description=medicine.description,
+            generic_name=medicine.generic_name,
+            type=medicine.type,
+            dosage=medicine.dosage,
+            side_effects=medicine.side_effects,
+            suitable_for=medicine.suitable_for,
+            price=medicine.price,
+            images=images,
+            disease_ids=disease_ids,
+            created_at=medicine.created_at
+        )
     
     class Config:
         from_attributes = True
@@ -98,7 +139,7 @@ class PharmacyMedicineInfo(BaseModel):
     description: str
     side_effects: Optional[str]
     suitable_for: Optional[str]
-    image_url: Optional[str]
+    images: Optional[List[str]] = Field(default=None, description="List of medicine image URLs")
     stock: Optional[str]
     price: Optional[float]
     last_updated: datetime

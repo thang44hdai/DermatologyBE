@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from typing import List, Tuple, Optional
+import json
 
-from app.models.database import Medicines, Pharmacies, MedicinePharmacyLink, Disease
+from app.models.database import Medicines, Pharmacies, MedicinePharmacyLink, Disease, MedicineDiseaseLink
 from app.schemas.medicine import (
     MedicineCreate,
     MedicineUpdate,
@@ -15,39 +16,57 @@ class MedicineService:
     """Service for medicine management"""
     
     @staticmethod
-    def create_medicine(db: Session, medicine: MedicineCreate) -> Medicines:
+    def create_medicine(db: Session, medicine: MedicineCreate, image_urls: Optional[List[str]] = None) -> Medicines:
         """
         Create a new medicine
         
         Args:
             db: Database session
             medicine: Medicine data
+            image_urls: List of image URLs to store as JSON
             
         Returns:
             Created medicine object
         """
-        # Check if disease exists
-        disease = db.query(Disease).filter(Disease.id == medicine.disease_id).first()
-        if not disease:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Disease with ID {medicine.disease_id} not found"
-            )
+        # Check if all diseases exist
+        for disease_id in medicine.disease_ids:
+            disease = db.query(Disease).filter(Disease.id == disease_id).first()
+            if not disease:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Disease with ID {disease_id} not found"
+                )
         
-        # Check for duplicate medicine name for same disease
-        existing = db.query(Medicines).filter(
-            Medicines.name == medicine.name,
-            Medicines.disease_id == medicine.disease_id
-        ).first()
-        
+        # Check for duplicate medicine name
+        existing = db.query(Medicines).filter(Medicines.name == medicine.name).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Medicine '{medicine.name}' already exists for this disease"
+                detail=f"Medicine '{medicine.name}' already exists"
             )
         
-        db_medicine = Medicines(**medicine.model_dump())
+        # Prepare medicine data (exclude disease_ids as it's not a direct column)
+        medicine_data = medicine.model_dump(exclude={"images", "disease_ids"})
+        
+        # Add images as JSON string
+        if image_urls:
+            medicine_data["image_url"] = json.dumps(image_urls)
+        else:
+            medicine_data["image_url"] = None
+        
+        # Create medicine
+        db_medicine = Medicines(**medicine_data)
         db.add(db_medicine)
+        db.flush()  # Get the medicine ID without committing
+        
+        # Create medicine-disease links
+        for disease_id in medicine.disease_ids:
+            link = MedicineDiseaseLink(
+                medicine_id=db_medicine.id,
+                disease_id=disease_id
+            )
+            db.add(link)
+        
         db.commit()
         db.refresh(db_medicine)
         return db_medicine
@@ -91,7 +110,7 @@ class MedicineService:
             skip: Number of records to skip
             limit: Maximum number of records
             search: Search term for name or generic name
-            disease_id: Filter by disease ID
+            disease_id: Filter by disease ID (searches in medicine-disease links)
             medicine_type: Filter by medicine type
             
         Returns:
@@ -108,7 +127,8 @@ class MedicineService:
             )
         
         if disease_id:
-            query = query.filter(Medicines.disease_id == disease_id)
+            # Filter by disease through the many-to-many relationship
+            query = query.join(MedicineDiseaseLink).filter(MedicineDiseaseLink.disease_id == disease_id)
         
         if medicine_type:
             query = query.filter(Medicines.type.ilike(f"%{medicine_type}%"))
@@ -122,7 +142,8 @@ class MedicineService:
     def update_medicine(
         db: Session,
         medicine_id: int,
-        medicine_update: MedicineUpdate
+        medicine_update: MedicineUpdate,
+        image_urls: Optional[List[str]] = None
     ) -> Medicines:
         """
         Update medicine information
@@ -131,6 +152,7 @@ class MedicineService:
             db: Database session
             medicine_id: Medicine ID to update
             medicine_update: Updated medicine data
+            image_urls: List of image URLs to store as JSON (if provided)
             
         Returns:
             Updated medicine object
@@ -144,16 +166,33 @@ class MedicineService:
             )
         
         # Update only provided fields
-        update_data = medicine_update.model_dump(exclude_unset=True)
+        update_data = medicine_update.model_dump(exclude_unset=True, exclude={"images", "disease_ids"})
         
-        # Check disease_id if provided
-        if "disease_id" in update_data:
-            disease = db.query(Disease).filter(Disease.id == update_data["disease_id"]).first()
-            if not disease:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Disease with ID {update_data['disease_id']} not found"
+        # Handle disease_ids update
+        if medicine_update.disease_ids is not None:
+            # Check if all diseases exist
+            for disease_id in medicine_update.disease_ids:
+                disease = db.query(Disease).filter(Disease.id == disease_id).first()
+                if not disease:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Disease with ID {disease_id} not found"
+                    )
+            
+            # Remove existing disease links
+            db.query(MedicineDiseaseLink).filter(MedicineDiseaseLink.medicine_id == medicine_id).delete()
+            
+            # Create new disease links
+            for disease_id in medicine_update.disease_ids:
+                link = MedicineDiseaseLink(
+                    medicine_id=medicine_id,
+                    disease_id=disease_id
                 )
+                db.add(link)
+        
+        # Handle images update
+        if image_urls is not None:
+            update_data["image_url"] = json.dumps(image_urls) if image_urls else None
         
         for field, value in update_data.items():
             setattr(medicine, field, value)
@@ -350,6 +389,15 @@ class MedicineService:
         
         medicines = []
         for link, medicine in results:
+            # Parse images from JSON
+            images = None
+            if medicine.image_url:
+                try:
+                    images = json.loads(medicine.image_url)
+                except:
+                    if medicine.image_url:
+                        images = [medicine.image_url]
+            
             medicines.append({
                 "link_id": link.id,
                 "medicine_id": medicine.id,
@@ -360,7 +408,7 @@ class MedicineService:
                 "description": medicine.description,
                 "side_effects": medicine.side_effects,
                 "suitable_for": medicine.suitable_for,
-                "image_url": medicine.image_url,
+                "images": images,
                 "stock": link.stock,
                 "price": link.price,
                 "last_updated": link.last_updated

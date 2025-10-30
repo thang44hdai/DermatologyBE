@@ -72,7 +72,7 @@ async def get_diseases(
     current_admin: User = Depends(get_current_admin)
 ):
     """
-    Get list of diseases with search
+    Get list of diseases with search and medicines
     
     **Requires Admin Role**
     
@@ -82,9 +82,9 @@ async def get_diseases(
         search: Optional search term for disease name
         
     Returns:
-        List of diseases with pagination info
+        List of diseases with medicines and pagination info
     """
-    diseases, total = disease_service.get_diseases(
+    diseases, total = disease_service.get_diseases_with_medicines(
         db=db,
         skip=skip,
         limit=limit,
@@ -99,14 +99,14 @@ async def get_diseases(
     }
 
 
-@router.get("/{disease_id}", response_model=DiseaseResponse)
+@router.get("/{disease_id}", response_model=DiseaseDetailResponse)
 async def get_disease(
     disease_id: int,
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin)
 ):
     """
-    Get disease by ID
+    Get disease by ID with medicines list
     
     **Requires Admin Role**
     
@@ -114,9 +114,9 @@ async def get_disease(
         disease_id: Disease ID
         
     Returns:
-        Disease information
+        Disease information with related medicines
     """
-    return disease_service.get_disease(db, disease_id)
+    return disease_service.get_disease_detail(db, disease_id)
 
 
 @router.get("/{disease_id}/detail", response_model=DiseaseDetailResponse)
