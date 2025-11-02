@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     MEDICINE_IMAGES_DIR: str = "uploads/medicines"
     SCAN_IMAGES_DIR: str = "uploads/scans"
     
+    # Firebase Storage
+    FIREBASE_SERVICE_ACCOUNT_KEY: str = "firebase-service-account.json"
+    FIREBASE_STORAGE_BUCKET: str = "learningapp-5ef0e.com"
+    USE_FIREBASE_STORAGE: bool = False  # Set to True to use Firebase Storage instead of local storage
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

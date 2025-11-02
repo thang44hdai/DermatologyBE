@@ -21,3 +21,11 @@ htmlcov/
 # Uploaded files
 /uploads/
 !uploads/.gitkeep
+
+# Firebase credentials
+firebase-service-account.json
+*-firebase-adminsdk-*.json
+
+# Documentation
+*.md
+!README.md
