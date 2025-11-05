@@ -10,6 +10,23 @@ class PredictionItem(BaseModel):
     confidence: float
 
 
+class MedicineInfo(BaseModel):
+    """Medicine information for disease treatment"""
+    id: int
+    name: str
+    description: Optional[str]
+    generic_name: Optional[str]
+    type: Optional[str]
+    dosage: Optional[str]
+    side_effects: Optional[str]
+    suitable_for: Optional[str]
+    price: Optional[int]
+    images: Optional[List[str]]  # Parsed from JSON
+    
+    class Config:
+        from_attributes = True
+
+
 class DiseaseInfo(BaseModel):
     """Disease information model"""
     id: int
@@ -18,6 +35,7 @@ class DiseaseInfo(BaseModel):
     symptoms: Optional[str]
     treatment: Optional[str]
     image_url: Optional[str]
+    medicines: List[MedicineInfo] = []  # Added medicines list
     created_at: datetime
     
     class Config:

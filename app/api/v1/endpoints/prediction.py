@@ -15,10 +15,57 @@ from app.schemas.prediction import (
 from app.services.ai_service import ai_service
 from app.config import settings
 from app.core.dependencies import get_db, get_current_user
-from app.models.database import User, Scans, DiagnosisHistory, Disease
+from app.models.database import User, Scans, DiagnosisHistory, Disease, MedicineDiseaseLink, Medicines
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def get_disease_with_medicines(db: Session, disease: Disease) -> dict:
+    """Helper function to get disease info with medicines"""
+    if not disease:
+        return None
+    
+    # Get medicines for this disease
+    medicine_links = db.query(MedicineDiseaseLink).filter(
+        MedicineDiseaseLink.disease_id == disease.id
+    ).all()
+    
+    medicines = []
+    for link in medicine_links:
+        medicine = db.query(Medicines).filter(Medicines.id == link.medicine_id).first()
+        if medicine:
+            # Parse image_url JSON to list
+            images = []
+            if medicine.image_url:
+                try:
+                    images = json.loads(medicine.image_url)
+                except:
+                    images = [medicine.image_url] if medicine.image_url else []
+            
+            medicines.append({
+                "id": medicine.id,
+                "name": medicine.name,
+                "description": medicine.description,
+                "generic_name": medicine.generic_name,
+                "type": medicine.type,
+                "dosage": medicine.dosage,
+                "side_effects": medicine.side_effects,
+                "suitable_for": medicine.suitable_for,
+                "price": medicine.price,
+                "images": images
+            })
+    
+    return {
+        "id": disease.id,
+        "disease_name": disease.disease_name,
+        "description": disease.description,
+        "symptoms": disease.symptoms,
+        "treatment": disease.treatment,
+        "image_url": disease.image_url,
+        "medicines": medicines,
+        "created_at": disease.created_at
+    }
 
 
 @router.post("/predict", response_model=PredictionResponse)
@@ -140,6 +187,9 @@ async def predict_disease(
             f"Scan ID: {scan.id}"
         )
         
+        # Get disease with medicines
+        disease_data = get_disease_with_medicines(db, disease)
+        
         # Return response with full disease information
         response_data = {
             "success": True,
@@ -148,15 +198,7 @@ async def predict_disease(
                 "label_vi": prediction_result['label_vi'],
                 "confidence": prediction_result['confidence'],
                 "scan_id": scan.id,
-                "disease": {
-                    "id": disease.id,
-                    "disease_name": disease.disease_name,
-                    "description": disease.description,
-                    "symptoms": disease.symptoms,
-                    "treatment": disease.treatment,
-                    "image_url": disease.image_url,
-                    "created_at": disease.created_at
-                },
+                "disease": disease_data,
                 "diagnosis_history_id": diagnosis_history.id,
                 "user_id": current_user.id
             }
@@ -205,8 +247,9 @@ async def get_scan_history(
     
     result = []
     for scan in scans:
-        # Get disease information
+        # Get disease information with medicines
         disease = db.query(Disease).filter(Disease.id == scan.disease_id).first()
+        disease_data = get_disease_with_medicines(db, disease) if disease else None
         
         # Get diagnosis history for this scan
         diagnosis_history = db.query(DiagnosisHistory).filter(
@@ -218,15 +261,7 @@ async def get_scan_history(
             "image_url": scan.image_url,
             "scan_date": scan.scan_date,
             "status": scan.status,
-            "disease": {
-                "id": disease.id if disease else None,
-                "disease_name": disease.disease_name if disease else None,
-                "description": disease.description if disease else None,
-                "symptoms": disease.symptoms if disease else None,
-                "treatment": disease.treatment if disease else None,
-                "image_url": disease.image_url if disease else None,
-                "created_at": disease.created_at if disease else None
-            } if disease else None,
+            "disease": disease_data,
             "diagnosis_history": {
                 "id": diagnosis_history.id if diagnosis_history else None,
                 "note": diagnosis_history.note if diagnosis_history else None,
@@ -267,8 +302,9 @@ async def get_scan_detail(
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
     
-    # Get disease information
+    # Get disease information with medicines
     disease = db.query(Disease).filter(Disease.id == scan.disease_id).first()
+    disease_data = get_disease_with_medicines(db, disease) if disease else None
     
     # Get diagnosis history for this scan
     diagnosis_history = db.query(DiagnosisHistory).filter(
@@ -281,15 +317,7 @@ async def get_scan_detail(
         "image_url": scan.image_url,
         "scan_date": scan.scan_date,
         "status": scan.status,
-        "disease": {
-            "id": disease.id,
-            "disease_name": disease.disease_name,
-            "description": disease.description,
-            "symptoms": disease.symptoms,
-            "treatment": disease.treatment,
-            "image_url": disease.image_url,
-            "created_at": disease.created_at
-        } if disease else None,
+        "disease": disease_data,
         "diagnosis_history": {
             "id": diagnosis_history.id,
             "note": diagnosis_history.note,
