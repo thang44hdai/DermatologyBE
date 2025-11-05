@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from fastapi import HTTPException, status
+import json
 
 from app.models.database import Pharmacies
 from app.schemas.pharmacy import PharmacyCreate, PharmacyUpdate
@@ -33,6 +34,11 @@ class PharmacyService:
                 detail="Pharmacy with this name and address already exists"
             )
         
+        # Prepare image URLs as JSON if provided
+        image_urls_json = None
+        if pharmacy.images:
+            image_urls_json = json.dumps(pharmacy.images)
+        
         # Create new pharmacy
         db_pharmacy = Pharmacies(
             name=pharmacy.name,
@@ -41,7 +47,8 @@ class PharmacyService:
             open_hours=pharmacy.open_hours,
             ratings=pharmacy.ratings,
             latitude=pharmacy.latitude,
-            longitude=pharmacy.longitude
+            longitude=pharmacy.longitude,
+            image_url=image_urls_json
         )
         
         db.add(db_pharmacy)
@@ -98,7 +105,9 @@ class PharmacyService:
     def update_pharmacy(
         db: Session,
         pharmacy_id: int,
-        pharmacy_update: PharmacyUpdate
+        pharmacy_update: PharmacyUpdate,
+        new_images: List[str] = None,
+        keep_existing_images: bool = True
     ) -> Pharmacies:
         """
         Update pharmacy information
@@ -107,6 +116,8 @@ class PharmacyService:
             db: Database session
             pharmacy_id: Pharmacy ID to update
             pharmacy_update: Updated pharmacy data
+            new_images: List of new image URLs to add
+            keep_existing_images: Whether to keep existing images
             
         Returns:
             Updated pharmacy object
@@ -123,6 +134,19 @@ class PharmacyService:
         update_data = pharmacy_update.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(pharmacy, field, value)
+        
+        # Handle images
+        if new_images:
+            existing_images = []
+            if keep_existing_images and pharmacy.image_url:
+                try:
+                    existing_images = json.loads(pharmacy.image_url)
+                except:
+                    existing_images = []
+            
+            # Combine existing and new images
+            all_images = existing_images + new_images
+            pharmacy.image_url = json.dumps(all_images)
         
         db.commit()
         db.refresh(pharmacy)
