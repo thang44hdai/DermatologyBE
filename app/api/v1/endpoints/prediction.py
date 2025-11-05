@@ -7,7 +7,11 @@ import json
 from typing import Optional
 from datetime import datetime
 
-from app.schemas.prediction import PredictionResponse
+from app.schemas.prediction import (
+    PredictionResponse, 
+    ScanHistoryResponse, 
+    ScanDetailResponse
+)
 from app.services.ai_service import ai_service
 from app.config import settings
 from app.core.dependencies import get_db, get_current_user
@@ -170,7 +174,7 @@ async def predict_disease(
         )
 
 
-@router.get("/history")
+@router.get("/history", response_model=ScanHistoryResponse)
 async def get_scan_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -218,7 +222,10 @@ async def get_scan_history(
                 "id": disease.id if disease else None,
                 "disease_name": disease.disease_name if disease else None,
                 "description": disease.description if disease else None,
-                "treatment": disease.treatment if disease else None
+                "symptoms": disease.symptoms if disease else None,
+                "treatment": disease.treatment if disease else None,
+                "image_url": disease.image_url if disease else None,
+                "created_at": disease.created_at if disease else None
             } if disease else None,
             "diagnosis_history": {
                 "id": diagnosis_history.id if diagnosis_history else None,
@@ -235,7 +242,7 @@ async def get_scan_history(
     }
 
 
-@router.get("/scan/{scan_id}")
+@router.get("/scan/{scan_id}", response_model=ScanDetailResponse)
 async def get_scan_detail(
     scan_id: int,
     db: Session = Depends(get_db),
@@ -278,6 +285,7 @@ async def get_scan_detail(
             "id": disease.id,
             "disease_name": disease.disease_name,
             "description": disease.description,
+            "symptoms": disease.symptoms,
             "treatment": disease.treatment,
             "image_url": disease.image_url,
             "created_at": disease.created_at

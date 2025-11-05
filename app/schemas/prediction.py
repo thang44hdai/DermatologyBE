@@ -46,3 +46,42 @@ class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
     device: str
+
+
+class DiagnosisHistoryInfo(BaseModel):
+    """Diagnosis history information"""
+    id: int
+    note: Optional[str]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class ScanHistoryItem(BaseModel):
+    """Individual scan history item"""
+    scan_id: int
+    image_url: Optional[str]
+    scan_date: datetime
+    status: str
+    disease: Optional[DiseaseInfo]
+    diagnosis_history: Optional[DiagnosisHistoryInfo]
+
+
+class ScanHistoryResponse(BaseModel):
+    """Response model for scan history list"""
+    total: int
+    skip: int
+    limit: int
+    scans: List[ScanHistoryItem]
+
+
+class ScanDetailResponse(BaseModel):
+    """Response model for scan detail"""
+    scan_id: int
+    user_id: int
+    image_url: Optional[str]
+    scan_date: datetime
+    status: str
+    disease: Optional[DiseaseInfo]
+    diagnosis_history: Optional[DiagnosisHistoryInfo]
