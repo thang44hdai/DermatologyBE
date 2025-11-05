@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, time
 
 
 class PharmacyBase(BaseModel):
@@ -8,7 +8,9 @@ class PharmacyBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Pharmacy name")
     address: str = Field(..., min_length=1, max_length=255, description="Pharmacy address")
     phone: Optional[str] = Field(None, max_length=50, description="Contact phone number")
-    open_hours: Optional[str] = Field(None, max_length=100, description="Opening hours (e.g., '8:00-20:00')")
+    open_time: Optional[time] = Field(None, description="Opening time (e.g., 08:00:00)")
+    close_time: Optional[time] = Field(None, description="Closing time (e.g., 21:00:00)")
+    is_open_247: bool = Field(default=False, description="Whether pharmacy is open 24/7")
     ratings: Optional[float] = Field(None, ge=0, le=5, description="Pharmacy rating (0-5)")
     latitude: Optional[float] = Field(None, description="Latitude coordinate")
     longitude: Optional[float] = Field(None, description="Longitude coordinate")
@@ -25,7 +27,9 @@ class PharmacyUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     address: Optional[str] = Field(None, min_length=1, max_length=255)
     phone: Optional[str] = Field(None, max_length=50)
-    open_hours: Optional[str] = Field(None, max_length=100)
+    open_time: Optional[time] = None
+    close_time: Optional[time] = None
+    is_open_247: Optional[bool] = None
     ratings: Optional[float] = Field(None, ge=0, le=5)
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -55,7 +59,9 @@ class PharmacyResponse(PharmacyBase):
             name=pharmacy.name,
             address=pharmacy.address,
             phone=pharmacy.phone,
-            open_hours=pharmacy.open_hours,
+            open_time=pharmacy.open_time,
+            close_time=pharmacy.close_time,
+            is_open_247=pharmacy.is_open_247,
             ratings=pharmacy.ratings,
             latitude=pharmacy.latitude,
             longitude=pharmacy.longitude,

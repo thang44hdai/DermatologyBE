@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Enum as SQLEnum, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Enum as SQLEnum, UniqueConstraint, Time, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -133,10 +133,14 @@ class Pharmacies(Base):
     name = Column(String(255), nullable=False)
     address = Column(String(255), nullable=False)
     phone = Column(String(50), nullable=True)
-    open_hours = Column(String(100), nullable=True)
+    # Replaced open_hours (string) with structured open_time/close_time and is_open_247
+    open_time = Column(Time, nullable=True)
+    close_time = Column(Time, nullable=True)
+    is_open_247 = Column(Boolean, nullable=False, default=False)
     ratings = Column(Float, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    image_url = Column(Text, nullable=True)  # Store JSON array of image URLs
 
     # Relationships
     medicine_pharmacies = relationship("MedicinePharmacyLink", back_populates="pharmacy")

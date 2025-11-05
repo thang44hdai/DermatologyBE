@@ -12,7 +12,7 @@ from app.schemas.pharmacy import (
     PharmacyWithDistanceResponse
 )
 from app.models.database import User
-from app.utils.file_upload import save_uploaded_files
+from app.utils.file_upload import FileUploadService
 
 router = APIRouter()
 
@@ -52,7 +52,7 @@ async def create_pharmacy(
     image_urls = []
     if images:
         try:
-            image_urls = await save_uploaded_files(images, "pharmacies")
+            image_urls = await FileUploadService.save_multiple_images(images, "uploads/pharmacies")
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -173,7 +173,7 @@ async def update_pharmacy(
     new_image_urls = []
     if images:
         try:
-            new_image_urls = await save_uploaded_files(images, "pharmacies")
+            new_image_urls = await FileUploadService.save_multiple_images(images, "uploads/pharmacies")
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
