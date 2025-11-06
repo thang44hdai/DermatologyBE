@@ -15,6 +15,7 @@ class PharmacyBase(BaseModel):
     latitude: Optional[float] = Field(None, description="Latitude coordinate")
     longitude: Optional[float] = Field(None, description="Longitude coordinate")
     images: Optional[List[str]] = Field(default=None, description="List of pharmacy image URLs")
+    logo_url: Optional[str] = Field(None, max_length=255, description="Pharmacy logo URL")
 
 
 class PharmacyCreate(PharmacyBase):
@@ -65,7 +66,8 @@ class PharmacyResponse(PharmacyBase):
             ratings=pharmacy.ratings,
             latitude=pharmacy.latitude,
             longitude=pharmacy.longitude,
-            images=images
+            images=images,
+            logo_url=pharmacy.logo_url
         )
 
 

@@ -50,7 +50,8 @@ class PharmacyService:
             ratings=pharmacy.ratings,
             latitude=pharmacy.latitude,
             longitude=pharmacy.longitude,
-            image_url=image_urls_json
+            image_url=image_urls_json,
+            logo_url=pharmacy.logo_url
         )
         
         db.add(db_pharmacy)

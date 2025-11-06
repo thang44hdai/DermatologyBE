@@ -8,32 +8,6 @@ from app.db.session import Base
 class UserRole(str, enum.Enum):
     USER = "user"
     ADMIN = "admin"
-    PARTNER_OWNER = "partner_owner"
-    PARTNER_ADMIN = "partner_admin"
-    PARTNER_MANAGER = "partner_manager"
-    PARTNER_STAFF = "partner_staff"
-
-
-class PartnerType(str, enum.Enum):
-    PHARMACY_CHAIN = "pharmacy_chain"
-    INDEPENDENT_PHARMACY = "independent_pharmacy"
-
-
-class PartnerStatus(str, enum.Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    SUSPENDED = "suspended"
-    ACTIVE = "active"
-
-
-class DocumentType(str, enum.Enum):
-    BUSINESS_LICENSE = "business_license"
-    PHARMACY_LICENSE = "pharmacy_license"
-    TAX_REGISTRATION = "tax_registration"
-    PROFESSIONAL_LICENSE = "professional_license"
-    INSURANCE = "insurance"
-    OTHER = "other"
 
 
 class User(Base):
@@ -48,7 +22,6 @@ class User(Base):
     gender = Column(String(10), nullable=True)
     avatar_url = Column(String(255), nullable=True)
     date_of_birth = Column(DateTime, nullable=True)
-    partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -60,7 +33,6 @@ class User(Base):
     user_answers = relationship("UserAnswers", back_populates="user")
     quiz_attempts = relationship("QuizAttempts", back_populates="user")
     chat_sessions = relationship("ChatSessions", back_populates="user")
-    partner = relationship("Partner", back_populates="users")
 
 
 class Scans(Base):
@@ -125,63 +97,6 @@ class Brand(Base):
 
     # Relationships
     medicines = relationship("Medicines", back_populates="brand")
-
-
-class Partner(Base):
-    __tablename__ = "partners"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    contact_phone = Column(String(20), nullable=True)
-    contact_email = Column(String(255), nullable=True)
-    partner_type = Column(SQLEnum(PartnerType), nullable=False)
-    address = Column(Text, nullable=True)
-    logo_url = Column(String(255), nullable=True)
-    phone_verified = Column(Boolean, default=False)
-    phone_verified_at = Column(DateTime, nullable=True)
-    status = Column(SQLEnum(PartnerStatus), default=PartnerStatus.PENDING, nullable=False)
-    notes = Column(Text, nullable=True)
-    approved_at = Column(DateTime, nullable=True)
-    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    rejected_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    rejected_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, onupdate=func.now())
-    parent_partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
-
-    # Relationships
-    pharmacies = relationship("Pharmacies", back_populates="partner")
-    documents = relationship("PartnerDocument", back_populates="partner", cascade="all, delete-orphan")
-    users = relationship("User", back_populates="partner")
-    
-    # Self-referential relationship for multi-branch chains
-    parent_partner = relationship("Partner", remote_side=[id], backref="child_partners")
-    
-    # Admin relationships
-    approver = relationship("User", foreign_keys=[approved_by], backref="approved_partners")
-    rejecter = relationship("User", foreign_keys=[rejected_by], backref="rejected_partners")
-
-
-class PartnerDocument(Base):
-    __tablename__ = "partner_documents"
-
-    id = Column(Integer, primary_key=True, index=True)
-    partner_id = Column(Integer, ForeignKey("partners.id"), nullable=False)
-    document_type = Column(SQLEnum(DocumentType), nullable=False)
-    document_number = Column(String(100), nullable=True)
-    issue_date = Column(DateTime, nullable=True)
-    expiry_date = Column(DateTime, nullable=True)
-    verified = Column(Boolean, default=False)
-    verified_at = Column(DateTime, nullable=True)
-    verified_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
-
-    # Relationships
-    partner = relationship("Partner", back_populates="documents")
-    verifier = relationship("User", foreign_keys=[verified_by], backref="verified_documents")
-
-
 class Medicines(Base):
     __tablename__ = "medicines"
 
@@ -239,11 +154,10 @@ class Pharmacies(Base):
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     image_url = Column(Text, nullable=True)  # Store JSON array of image URLs
-    partner_id = Column(Integer, ForeignKey("partners.id"), nullable=True)
+    logo_url = Column(String(255), nullable=True)  # Pharmacy logo
 
     # Relationships
     medicine_pharmacies = relationship("MedicinePharmacyLink", back_populates="pharmacy")
-    partner = relationship("Partner", back_populates="pharmacies")
 
 
 class MedicinePharmacyLink(Base):
