@@ -86,6 +86,19 @@ class Disease(Base):
     medicines = relationship("Medicines", secondary="medicine_disease_link", back_populates="diseases", viewonly=True)
 
 
+class Brand(Base):
+    __tablename__ = "brands"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    logo_path = Column(String(255), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+    # Relationships
+    medicines = relationship("Medicines", back_populates="brand")
+
+
 class Medicines(Base):
     __tablename__ = "medicines"
 
@@ -98,10 +111,12 @@ class Medicines(Base):
     side_effects = Column(Text, nullable=True)
     suitable_for = Column(String(10), nullable=True)
     price = Column(Float, nullable=True)
+    brand_id = Column(Integer, ForeignKey("brands.id"), nullable=True)
     image_url = Column(Text, nullable=True)  # JSON array of image URLs
     created_at = Column(DateTime, server_default=func.now())
 
-    # Relationships - Many-to-Many with Disease through MedicineDiseaseLink
+    # Relationships
+    brand = relationship("Brand", back_populates="medicines")
     disease_links = relationship("MedicineDiseaseLink", back_populates="medicine", cascade="all, delete-orphan")
     diseases = relationship("Disease", secondary="medicine_disease_link", back_populates="medicines", viewonly=True)
     medicine_pharmacies = relationship("MedicinePharmacyLink", back_populates="medicine")

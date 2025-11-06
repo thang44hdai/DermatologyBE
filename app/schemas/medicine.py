@@ -3,6 +3,19 @@ from typing import Optional, List
 from datetime import datetime
 
 
+# ===== Nested Brand Info for Medicine =====
+
+class BrandInfo(BaseModel):
+    """Nested brand information in medicine response"""
+    id: int
+    name: str
+    description: Optional[str]
+    logo_path: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+
 # ===== Medicine Schemas =====
 
 class MedicineBase(BaseModel):
@@ -16,6 +29,7 @@ class MedicineBase(BaseModel):
     suitable_for: Optional[str] = Field(None, max_length=10, description="Suitable for (e.g., adults, children)")
     price: Optional[float] = Field(None, ge=0, description="Base price")
     images: Optional[List[str]] = Field(None, description="List of medicine image URLs")
+    brand_id: Optional[int] = Field(None, description="Brand ID")
     disease_ids: List[int] = Field(..., min_items=1, description="List of related disease IDs")
 
 
@@ -35,6 +49,7 @@ class MedicineUpdate(BaseModel):
     suitable_for: Optional[str] = Field(None, max_length=10)
     price: Optional[float] = Field(None, ge=0)
     images: Optional[List[str]] = None
+    brand_id: Optional[int] = None
     disease_ids: Optional[List[int]] = Field(None, min_items=1, description="List of related disease IDs")
 
 
@@ -50,6 +65,7 @@ class MedicineResponse(BaseModel):
     suitable_for: Optional[str]
     price: Optional[float]
     images: Optional[List[str]]
+    brand: Optional[BrandInfo]
     disease_ids: List[int]
     created_at: datetime
     
@@ -69,6 +85,11 @@ class MedicineResponse(BaseModel):
         # Get disease IDs from the many-to-many relationship
         disease_ids = [link.disease_id for link in medicine.disease_links]
         
+        # Get brand info if exists
+        brand = None
+        if medicine.brand:
+            brand = BrandInfo.from_orm(medicine.brand)
+        
         return cls(
             id=medicine.id,
             name=medicine.name,
@@ -80,6 +101,7 @@ class MedicineResponse(BaseModel):
             suitable_for=medicine.suitable_for,
             price=medicine.price,
             images=images,
+            brand=brand,
             disease_ids=disease_ids,
             created_at=medicine.created_at
         )
