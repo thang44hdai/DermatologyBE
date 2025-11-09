@@ -282,11 +282,14 @@ async def search_nearby_pharmacies(
             name=pharmacy.name,
             address=pharmacy.address,
             phone=pharmacy.phone,
-            open_hours=pharmacy.open_hours,
+            open_time=pharmacy.open_time,
+            close_time=pharmacy.close_time,
+            is_open_247=pharmacy.is_open_247,
             ratings=pharmacy.ratings,
             latitude=pharmacy.latitude,
             longitude=pharmacy.longitude,
             images=images,
+            logo_url=pharmacy.logo_url,
             distance_km=distance
         ))
     
