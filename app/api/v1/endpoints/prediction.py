@@ -16,6 +16,7 @@ from app.services.ai_service import ai_service
 from app.config import settings
 from app.core.dependencies import get_db, get_current_user
 from app.models.database import User, Scans, DiagnosisHistory, Disease, MedicineDiseaseLink, Medicines
+from app.utils.file_upload import file_upload_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -137,6 +138,15 @@ async def predict_disease(
         # Predict using AI service
         prediction_result = ai_service.predict(image)
         
+        # Save image to Firebase/Local storage
+        # Reset file pointer before saving
+        await file.seek(0)
+        image_url = await file_upload_service.save_image(
+            file=file,
+            upload_dir="uploads/scans",
+            prefix="scan"
+        )
+        
         # Search disease by Vietnamese label (label_vi)
         disease = db.query(Disease).filter(
             Disease.disease_name == prediction_result['label_vi']
@@ -161,7 +171,7 @@ async def predict_disease(
         # Create scan record
         scan = Scans(
             user_id=current_user.id,
-            image_url=file.filename or "uploaded_image.jpg",  # In production, save to storage and store URL
+            image_url=image_url,  # Save Firebase URL or local path
             scan_date=datetime.utcnow(),
             status="completed",
             disease_id=disease.id
@@ -198,6 +208,7 @@ async def predict_disease(
                 "label_vi": prediction_result['label_vi'],
                 "confidence": prediction_result['confidence'],
                 "scan_id": scan.id,
+                "image_url": image_url,
                 "disease": disease_data,
                 "diagnosis_history_id": diagnosis_history.id,
                 "user_id": current_user.id

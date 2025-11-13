@@ -48,6 +48,7 @@ class PredictionData(BaseModel):
     label_vi: str
     confidence: float
     scan_id: int
+    image_url: str
     disease: DiseaseInfo
     diagnosis_history_id: int
     user_id: int
