@@ -1,4 +1,6 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+from fastapi.responses import JSONResponse
+from app.utils.gradcam_utils import draw_boundary, generate_heatmap
 from sqlalchemy.orm import Session
 from PIL import Image
 import io
@@ -6,6 +8,7 @@ import logging
 import json
 from typing import Optional
 from datetime import datetime
+from tempfile import SpooledTemporaryFile
 
 from app.schemas.prediction import (
     PredictionResponse, 
@@ -366,3 +369,42 @@ async def delete_scan(
     db.commit()
     
     return {"message": "Scan deleted successfully", "scan_id": scan_id}
+
+@router.post("/detect-boundary")
+async def detect_boundary(file: UploadFile = File(...)):
+    # 1️⃣ Load model
+    if not ai_service.model_loaded:
+        ai_service.load_model()
+
+    # 2️⃣ Read original image
+    img_bytes = await file.read()
+    image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+    # 3️⃣ Generate cam + boundary
+    cam, pred_idx = generate_heatmap(image)
+    processed_bytes = draw_boundary(image, cam)
+
+    # 4️⃣ Tạo UploadFile để upload Firebase
+    processed_file = UploadFile(
+        filename="scan_detected.jpg",
+        file=io.BytesIO(processed_bytes)
+    )
+    
+
+    # Reset pointer (very important)
+    processed_file.file.seek(0)
+
+    # 5️⃣ Upload Firebase
+    image_url = await file_upload_service.save_image(
+        file=processed_file,
+        upload_dir="uploads/scans_highlight",
+        prefix="scan"
+    )
+
+    # 6️⃣ Trả response
+    return {
+        "success": True,
+        "label_en": ai_service.idx_to_label.get(pred_idx),
+        "predicted_index": pred_idx,
+        "image_url": image_url
+    }
