@@ -23,7 +23,7 @@ class ChatService:
     # - Lower scores = more similar (0.0 = identical)
     # - Typical range: 0.0 to 2.0
     # - Threshold 1.2 filters out moderately irrelevant results
-    SIMILARITY_THRESHOLD = 1.2
+    SIMILARITY_THRESHOLD = 14
     
     def __init__(self):
         self.vector_db: Optional[FAISS] = None
@@ -75,13 +75,14 @@ class ChatService:
         if not self.initialized:
             raise RuntimeError("ChatService is not initialized. Call initialize() first.")
     
-    def _get_or_create_session(self, db: Session, session_id: Optional[str] = None) -> ChatSessions:
+    def _get_or_create_session(self, db: Session, session_id: Optional[str] = None, user_id: int = None) -> ChatSessions:
         """
         Get existing session or create a new one.
         
         Args:
             db: Database session
             session_id: Optional session ID (UUID string)
+            user_id: User ID from authentication
             
         Returns:
             ChatSessions object
@@ -99,12 +100,16 @@ class ChatService:
             if not chat_session:
                 raise ValueError(f"Chat session with ID '{session_id}' not found or has been deleted.")
             
+            # Verify session belongs to the user
+            if chat_session.user_id != user_id:
+                raise ValueError(f"Chat session '{session_id}' does not belong to the current user.")
+            
             return chat_session
         else:
             # Create new session
             new_session = ChatSessions(
                 id=str(uuid.uuid4()),
-                user_id=1,  # TODO: Replace with actual user_id from authentication
+                user_id=user_id,
                 title="New Chat",  # TODO: Generate title from first message
                 created_at=datetime.now()
             )
@@ -290,7 +295,8 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
         self,
         db: Session,
         message: str,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        user_id: int = None
     ) -> Dict[str, Any]:
         """
         Process a chat message with RAG and LLM.
@@ -299,20 +305,21 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
             db: Database session
             message: User's message
             session_id: Optional chat session ID
+            user_id: User ID from authentication
             
         Returns:
             Dictionary containing session_id, answer, sources, and created_at
             
         Raises:
             RuntimeError: If service is not initialized
-            ValueError: If session_id is invalid
+            ValueError: If session_id is invalid or doesn't belong to user
             Exception: For other processing errors
         """
         self._ensure_initialized()
         
         try:
             # Step 1: Session Management
-            chat_session = self._get_or_create_session(db, session_id)
+            chat_session = self._get_or_create_session(db, session_id, user_id)
             current_session_id = chat_session.id
             
             # Step 2: Chat History

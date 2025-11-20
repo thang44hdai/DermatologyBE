@@ -75,3 +75,57 @@ class ChatResponse(BaseModel):
                 "created_at": "2025-11-21T01:11:23"
             }
         }
+
+
+class ChatSessionItem(BaseModel):
+    """
+    Individual chat session item in the list.
+    """
+    id: str = Field(..., description="UUID of the chat session")
+    title: Optional[str] = Field(None, description="Title of the chat session")
+    created_at: datetime = Field(..., description="When the session was created")
+    updated_at: Optional[datetime] = Field(None, description="Last update time")
+    message_count: int = Field(0, description="Number of messages in this session")
+    last_message: Optional[str] = Field(None, description="Preview of the last message")
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "title": "Tư vấn về thuốc đau đầu",
+                "created_at": "2025-11-21T01:11:23",
+                "updated_at": "2025-11-21T01:15:30",
+                "message_count": 6,
+                "last_message": "Cảm ơn bạn, tôi sẽ thử thuốc này."
+            }
+        }
+
+
+class ChatSessionListResponse(BaseModel):
+    """
+    Response model for listing chat sessions.
+    """
+    sessions: List[ChatSessionItem] = Field(
+        default_factory=list,
+        description="List of chat sessions for the user"
+    )
+    total: int = Field(..., description="Total number of sessions")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "sessions": [
+                    {
+                        "id": "550e8400-e29b-41d4-a716-446655440000",
+                        "title": "Tư vấn về thuốc đau đầu",
+                        "created_at": "2025-11-21T01:11:23",
+                        "updated_at": "2025-11-21T01:15:30",
+                        "message_count": 6,
+                        "last_message": "Cảm ơn bạn, tôi sẽ thử thuốc này."
+                    }
+                ],
+                "total": 1
+            }
+        }
+
