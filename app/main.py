@@ -8,6 +8,7 @@ from pathlib import Path
 from app.config import settings
 from app.api.v1.router import api_router
 from app.services.ai_service import ai_service
+from app.services.chat_service import chat_service
 from app.db.session import engine
 from app.models.database import Base
 
@@ -56,13 +57,22 @@ app.add_middleware(
 async def startup_event():
     """Initialize services on startup"""
     logger.info("Starting up application...")
+    
+    # Load AI model for skin disease prediction
     try:
-        # Load AI model
         ai_service.load_model()
         logger.info("AI model loaded successfully")
     except Exception as e:
         logger.error(f"Failed to load AI model: {e}")
         logger.warning("Application will start but predictions will not work")
+    
+    # Initialize Chat Service (RAG with FAISS + LLM)
+    try:
+        chat_service.initialize()
+        logger.info("Chat service initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize chat service: {e}")
+        logger.warning("Application will start but chat functionality will not work")
 
 
 @app.on_event("shutdown")

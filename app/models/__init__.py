@@ -25,13 +25,7 @@ from .database import (
     ChatSessions,
     ChatMessages,
     
-    # Quiz System
-    QuizCategories,
-    Quizzes,
-    Questions,
-    Answers,
-    UserAnswers,
-    QuizAttempts,
+
     
     # System
     AppLogs,
@@ -62,14 +56,6 @@ __all__ = [
     # Chat
     "ChatSessions",
     "ChatMessages",
-    
-    # Quiz System
-    "QuizCategories",
-    "Quizzes",
-    "Questions",
-    "Answers",
-    "UserAnswers",
-    "QuizAttempts",
     
     # System
     "AppLogs",

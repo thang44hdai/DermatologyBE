@@ -30,8 +30,6 @@ class User(Base):
     diagnosis_history = relationship("DiagnosisHistory", back_populates="user")
     notifications = relationship("Notifications", back_populates="user")
     app_logs = relationship("AppLogs", back_populates="user")
-    user_answers = relationship("UserAnswers", back_populates="user")
-    quiz_attempts = relationship("QuizAttempts", back_populates="user")
     chat_sessions = relationship("ChatSessions", back_populates="user")
 
 
@@ -178,10 +176,12 @@ class MedicinePharmacyLink(Base):
 class ChatSessions(Base):
     __tablename__ = "chat_sessions"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(36), primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String(255), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())
+    deleted_at = Column(DateTime, nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="chat_sessions")
@@ -191,95 +191,17 @@ class ChatSessions(Base):
 class ChatMessages(Base):
     __tablename__ = "chat_messages"
 
-    id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=False)
-    sender = Column(String(50), nullable=False)  # e.g., 'user' or 'bot'
-    message = Column(Text, nullable=False)
-    timestamp = Column(DateTime, server_default=func.now())
+    id = Column(String(36), primary_key=True, index=True)
+    session_id = Column(String(36), ForeignKey("chat_sessions.id"), nullable=False)
+    role = Column(String(50), nullable=False)  # e.g., 'user' or 'assistant' or 'system'
+    content = Column(Text, nullable=False)
+    sources = Column(Text, nullable=True) # To store the list of products or pharmacies metadata (RAG sources)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
+    deleted_at = Column(DateTime, nullable=True)
 
     # Relationships
     chat_session = relationship("ChatSessions", back_populates="chat_messages")
-
-
-class QuizCategories(Base):
-    __tablename__ = "quiz_categories"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-
-    # Relationships
-    quizzes = relationship("Quizzes", back_populates="quiz_category")
-
-
-class Quizzes(Base):
-    __tablename__ = "quizzes"
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(255), nullable=False)
-    category_id = Column(Integer, ForeignKey("quiz_categories.id"), nullable=False)
-    description = Column(Text, nullable=True)
-    created_at = Column(DateTime, server_default=func.now())
-
-    # Relationships
-    quiz_category = relationship("QuizCategories", back_populates="quizzes")
-    questions = relationship("Questions", back_populates="quiz")
-    quiz_attempts = relationship("QuizAttempts", back_populates="quiz")
-
-
-class Questions(Base):
-    __tablename__ = "questions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    quiz_id = Column(Integer, ForeignKey("quizzes.id"), nullable=False)
-    content = Column(Text, nullable=False)
-    point = Column(Integer, nullable=False)
-
-    # Relationships
-    quiz = relationship("Quizzes", back_populates="questions")
-    answers = relationship("Answers", back_populates="question")
-    user_answers = relationship("UserAnswers", back_populates="question")
-
-
-class Answers(Base):
-    __tablename__ = "answers"
-
-    id = Column(Integer, primary_key=True, index=True)
-    question_id = Column(Integer, ForeignKey("questions.id"), nullable=False)
-    content = Column(Text, nullable=False)
-    is_correct = Column(Integer, nullable=False)
-
-    # Relationships
-    question = relationship("Questions", back_populates="answers")
-
-
-class UserAnswers(Base):
-    __tablename__ = "user_answers"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    question_id = Column(Integer, ForeignKey("questions.id"), nullable=False)
-    is_correct = Column(Integer, nullable=False)
-    answered_at = Column(DateTime, server_default=func.now())
-
-    # Relationships
-    user = relationship("User", back_populates="user_answers")
-    question = relationship("Questions", back_populates="user_answers")
-
-
-class QuizAttempts(Base):
-    __tablename__ = "quiz_attempts"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    quiz_id = Column(Integer, ForeignKey("quizzes.id"), nullable=False)
-    score = Column(Float, nullable=False)
-    completed_at = Column(DateTime, nullable=True)
-    duration = Column(Integer, nullable=True)
-
-    # Relationships
-    user = relationship("User", back_populates="quiz_attempts")
-    quiz = relationship("Quizzes", back_populates="quiz_attempts")
 
 
 class AppLogs(Base):
@@ -303,7 +225,7 @@ class Notifications(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     message = Column(Text, nullable=False)
-    is_read = Column(Integer, default=0)
+    is_read = Column(Boolean, default=0)
     created_at = Column(DateTime, server_default=func.now())
     type = Column(String(100), nullable=True)
     priority = Column(String(50), nullable=True)

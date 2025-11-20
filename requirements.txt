@@ -36,3 +36,12 @@ firebase-admin>=6.2.0
 # Testing (optional)
 # pytest>=7.4.0
 # httpx>=0.24.0
+
+langchain 
+langchain-community 
+langchain-huggingface
+langchain-text-splitters
+faiss-cpu 
+sentence-transformers 
+requests
+langchain_openai
