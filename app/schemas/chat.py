@@ -129,3 +129,63 @@ class ChatSessionListResponse(BaseModel):
             }
         }
 
+
+class ChatMessageItem(BaseModel):
+    """
+    Individual chat message in a session.
+    """
+    id: str = Field(..., description="UUID of the message")
+    role: str = Field(..., description="Message role: 'user' or 'assistant'")
+    content: str = Field(..., description="Message content")
+    sources: Optional[List[Dict[str, Any]]] = Field(None, description="RAG sources (only for assistant messages)")
+    created_at: datetime = Field(..., description="When the message was created")
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": "msg-550e8400-e29b-41d4-a716-446655440000",
+                "role": "user",
+                "content": "Tôi bị đau đầu, nên uống thuốc gì?",
+                "sources": None,
+                "created_at": "2025-11-21T01:11:23"
+            }
+        }
+
+
+class ChatHistoryResponse(BaseModel):
+    """
+    Response model for chat session history.
+    """
+    session_id: str = Field(..., description="UUID of the chat session")
+    messages: List[ChatMessageItem] = Field(
+        default_factory=list,
+        description="List of messages in chronological order"
+    )
+    total: int = Field(..., description="Total number of messages")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                "messages": [
+                    {
+                        "id": "msg-1",
+                        "role": "user",
+                        "content": "Tôi bị đau đầu, nên uống thuốc gì?",
+                        "sources": None,
+                        "created_at": "2025-11-21T01:11:23"
+                    },
+                    {
+                        "id": "msg-2",
+                        "role": "assistant",
+                        "content": "Bạn có thể sử dụng Paracetamol...",
+                        "sources": [{"medicine_id": 123, "name": "Paracetamol 500mg"}],
+                        "created_at": "2025-11-21T01:11:25"
+                    }
+                ],
+                "total": 2
+            }
+        }
+
+

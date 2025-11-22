@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: dermatology_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-dermatology_db}
+      MYSQL_USER: ${MYSQL_USER:-dermatology_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dermatology_pass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - dermatology_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dermatology_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-dermatology_user}:${MYSQL_PASSWORD:-dermatology_pass}@mysql:3306/${MYSQL_DATABASE:-dermatology_db}
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - LLM_SERVER_URL=${LLM_SERVER_URL:-http://llm-server:8080/v1}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./faiss_index_store:/app/faiss_index_store
+      - ./models:/app/models
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - dermatology_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # LLM Server (Optional - uncomment if running locally)
+  # llm-server:
+  #   image: ghcr.io/ggerganov/llama.cpp:server
+  #   container_name: dermatology_llm
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - ./llm_models:/models
+  #   command: 
+  #     - "-m"
+  #     - "/models/your-model.gguf"
+  #     - "--host"
+  #     - "0.0.0.0"
+  #     - "--port"
+  #     - "8080"
+  #   networks:
+  #     - dermatology_network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 8G
+
+networks:
+  dermatology_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local

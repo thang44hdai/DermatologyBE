@@ -27,8 +27,8 @@ firebase-service-account.json
 *-firebase-adminsdk-*.json
 
 # Documentation
-*.md
-!README.md
+# *.md
+# !README.md
 
 #Faiss db
 faiss_index_store

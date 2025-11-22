@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+import json
 
 from app.core.dependencies import get_db, get_current_user
-from app.schemas.chat import ChatRequest, ChatResponse, ChatSessionListResponse, ChatSessionItem
+from app.schemas.chat import (
+    ChatRequest, ChatResponse, ChatSessionListResponse, ChatSessionItem,
+    ChatHistoryResponse, ChatMessageItem
+)
 from app.services.chat_service import chat_service
 from app.models.database import ChatSessions, ChatMessages, User
 
@@ -144,4 +148,94 @@ async def get_user_chat_sessions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve chat sessions: {str(e)}"
         )
+
+
+@router.get("/sessions/{session_id}/messages", response_model=ChatHistoryResponse, status_code=status.HTTP_200_OK)
+async def get_chat_history(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = 50,
+    offset: int = 0
+) -> ChatHistoryResponse:
+    """
+    Get message history for a specific chat session.
+    
+    Returns all messages in the specified session, ordered chronologically.
+    Supports pagination via limit and offset parameters.
+    
+    Args:
+        session_id: UUID of the chat session
+        db: Database session dependency
+        current_user: Authenticated user from JWT token
+        limit: Maximum number of messages to return (default: 50)
+        offset: Number of messages to skip (default: 0)
+        
+    Returns:
+        ChatHistoryResponse with list of messages
+        
+    Raises:
+        HTTPException 401: If user is not authenticated
+        HTTPException 404: If session not found or doesn't belong to user
+        HTTPException 500: If database query fails
+    """
+    try:
+        # Verify session exists and belongs to user
+        session = db.query(ChatSessions).filter(
+            ChatSessions.id == session_id,
+            ChatSessions.user_id == current_user.id,
+            ChatSessions.deleted_at.is_(None)
+        ).first()
+        
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Chat session '{session_id}' not found or access denied"
+            )
+        
+        # Get total message count
+        total_count = db.query(func.count(ChatMessages.id)).filter(
+            ChatMessages.session_id == session_id,
+            ChatMessages.deleted_at.is_(None)
+        ).scalar()
+        
+        # Get messages with pagination
+        messages = db.query(ChatMessages).filter(
+            ChatMessages.session_id == session_id,
+            ChatMessages.deleted_at.is_(None)
+        ).order_by(ChatMessages.created_at.asc()).offset(offset).limit(limit).all()
+        
+        # Convert to response format
+        message_items = []
+        for msg in messages:
+            # Parse sources from JSON string
+            sources = None
+            if msg.sources:
+                try:
+                    sources = json.loads(msg.sources)
+                except json.JSONDecodeError:
+                    sources = None
+            
+            message_items.append(ChatMessageItem(
+                id=msg.id,
+                role=msg.role,
+                content=msg.content,
+                sources=sources,
+                created_at=msg.created_at
+            ))
+        
+        return ChatHistoryResponse(
+            session_id=session_id,
+            messages=message_items,
+            total=total_count or 0
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve chat history: {str(e)}"
+        )
+
 

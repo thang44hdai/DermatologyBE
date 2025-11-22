@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from pydantic import field_validator
+from typing import Optional, Union
 import os
 
 
@@ -16,7 +17,15 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     
     # CORS
-    CORS_ORIGINS: list = ["*"]
+    CORS_ORIGINS: Union[list, str] = ["*"]
+    
+    @field_validator('CORS_ORIGINS', mode='before')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            # Split by comma and strip whitespace
+            return [origin.strip() for origin in v.split(',')]
+        return v
     
     # Server
     HOST: str = "0.0.0.0"
@@ -50,6 +59,13 @@ class Settings(BaseSettings):
     FIREBASE_SERVICE_ACCOUNT_KEY: str = "firebase-service-account.json"
     FIREBASE_STORAGE_BUCKET: str = "learningapp-5ef0e.com"
     USE_FIREBASE_STORAGE: bool = False  # Set to True to use Firebase Storage instead of local storage
+    
+    # LLM Server Configuration (for RAG Chatbot)
+    LLM_SERVER_URL: str = "http://localhost:8080/v1"
+    
+    # Vector Database (FAISS)
+    FAISS_INDEX_PATH: str = "faiss_index_store"
+    EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     
     class Config:
         env_file = ".env"
