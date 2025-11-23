@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import json
+from datetime import datetime
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, get_current_user_ws
 from app.schemas.chat import (
     ChatRequest, ChatResponse, ChatSessionListResponse, ChatSessionItem,
-    ChatHistoryResponse, ChatMessageItem
+    ChatHistoryResponse, ChatMessageItem, ChatWSRequest, ChatWSResponse, ChatWSError
 )
 from app.services.chat_service import chat_service
 from app.models.database import ChatSessions, ChatMessages, User
@@ -237,5 +238,146 @@ async def get_chat_history(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve chat history: {str(e)}"
         )
+
+
+@router.websocket("/ws")
+async def websocket_chat_endpoint(
+    websocket: WebSocket,
+    token: str,
+    db: Session = Depends(get_db)
+):
+    """
+    WebSocket endpoint for realtime chat with streaming responses.
+    
+    Connection URL: ws://localhost:8000/api/v1/chat/ws?token=<JWT_TOKEN>
+    
+    Message format (from client):
+    {
+        "message": "Your question here",
+        "session_id": "optional-session-uuid"
+    }
+    
+    Response format (to client):
+    - Status updates: {"type": "status", "status": "message"}
+    - Start: {"type": "start", "session_id": "..."}
+    - Chunks: {"type": "chunk", "content": "..."}
+    - End: {"type": "end", "sources": [...], "created_at": "..."}
+    - Error: {"type": "error", "error": "...", "detail": "..."}
+    
+    Args:
+        websocket: WebSocket connection
+        token: JWT access token from query parameter
+        db: Database session
+    """
+    await websocket.accept()
+    
+    try:
+        # Authenticate user
+        try:
+            current_user = await get_current_user_ws(token, db)
+            print(f"✅ WebSocket authenticated: user_id={current_user.id}, username={current_user.username}")
+        except HTTPException as auth_error:
+            error_msg = ChatWSError(
+                error="Authentication failed",
+                detail=str(auth_error.detail)
+            )
+            await websocket.send_json(error_msg.model_dump())
+            await websocket.close(code=1008)  # Policy violation
+            return
+        
+        # Main message loop
+        while True:
+            try:
+                # Receive message from client
+                data = await websocket.receive_json()
+                
+                # Validate request
+                try:
+                    request = ChatWSRequest(**data)
+                except Exception as validation_error:
+                    error_msg = ChatWSError(
+                        error="Invalid request format",
+                        detail=str(validation_error)
+                    )
+                    await websocket.send_json(error_msg.model_dump())
+                    continue
+                
+                print(f"📨 WebSocket message from user {current_user.id}: '{request.message[:50]}...'")
+                
+                # Process chat with streaming
+                try:
+                    async for event in chat_service.process_chat_streaming(
+                        db=db,
+                        message=request.message,
+                        session_id=request.session_id,
+                        user_id=current_user.id
+                    ):
+                        # Convert event to response schema
+                        if event['type'] == 'status':
+                            response = ChatWSResponse(
+                                type='status',
+                                status=event['status']
+                            )
+                        elif event['type'] == 'start':
+                            response = ChatWSResponse(
+                                type='start',
+                                session_id=event['session_id']
+                            )
+                        elif event['type'] == 'chunk':
+                            response = ChatWSResponse(
+                                type='chunk',
+                                content=event['content']
+                            )
+                        elif event['type'] == 'end':
+                            response = ChatWSResponse(
+                                type='end',
+                                sources=event.get('sources'),
+                                created_at=event.get('created_at')
+                            )
+                        else:
+                            continue
+                        
+                        # Send to client
+                        await websocket.send_json(response.model_dump(mode='json'))
+                    
+                    print(f"✅ WebSocket streaming completed for user {current_user.id}")
+                    
+                except ValueError as ve:
+                    # Session not found or access denied
+                    error_msg = ChatWSError(
+                        error="Invalid session",
+                        detail=str(ve)
+                    )
+                    await websocket.send_json(error_msg.model_dump())
+                    
+                except RuntimeError as re:
+                    # Service error
+                    error_msg = ChatWSError(
+                        error="Service error",
+                        detail=str(re)
+                    )
+                    await websocket.send_json(error_msg.model_dump())
+                    
+            except WebSocketDisconnect:
+                print(f"🔌 WebSocket disconnected: user_id={current_user.id}")
+                break
+            except Exception as e:
+                print(f"❌ Error in WebSocket message loop: {e}")
+                error_msg = ChatWSError(
+                    error="Internal error",
+                    detail=str(e)
+                )
+                try:
+                    await websocket.send_json(error_msg.model_dump())
+                except:
+                    pass
+                break
+                
+    except Exception as e:
+        print(f"❌ WebSocket connection error: {e}")
+        try:
+            await websocket.close(code=1011)  # Internal error
+        except:
+            pass
 
 

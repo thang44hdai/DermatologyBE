@@ -291,6 +291,92 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
         
         db.commit()
     
+    async def process_chat_streaming(
+        self,
+        db: Session,
+        message: str,
+        session_id: Optional[str] = None,
+        user_id: int = None
+    ):
+        """
+        Process a chat message with RAG and LLM in streaming mode.
+        Yields progress updates and response chunks in realtime.
+        
+        Args:
+            db: Database session
+            message: User's message
+            session_id: Optional chat session ID
+            user_id: User ID from authentication
+            
+        Yields:
+            Dictionary with type and data for each streaming event:
+            - {'type': 'status', 'status': 'message'} for progress updates
+            - {'type': 'start', 'session_id': '...'} when starting generation
+            - {'type': 'chunk', 'content': '...'} for each response chunk
+            - {'type': 'end', 'sources': [...]} when complete
+            
+        Raises:
+            RuntimeError: If service is not initialized
+            ValueError: If session_id is invalid or doesn't belong to user
+        """
+        self._ensure_initialized()
+        
+        try:
+            # Step 1: Session Management
+            yield {'type': 'status', 'status': 'Đang khởi tạo phiên chat...'}
+            chat_session = self._get_or_create_session(db, session_id, user_id)
+            current_session_id = chat_session.id
+            
+            # Step 2: Chat History
+            yield {'type': 'status', 'status': 'Đang tải lịch sử hội thoại...'}
+            chat_history = self._get_chat_history(db, current_session_id, limit=5)
+            print(f"📜 Loaded {len(chat_history)} previous messages from history")
+            
+            # Step 3: RAG Retrieval
+            yield {'type': 'status', 'status': 'Đang tìm kiếm thông tin liên quan...'}
+            print(f"🔍 Performing RAG retrieval for: '{message[:50]}...'")
+            context, sources = self._perform_rag_retrieval(message, k=3)
+            print(f"✅ Retrieved {len(sources)} relevant sources")
+            
+            # Step 4: LLM Streaming Generation
+            yield {'type': 'status', 'status': 'Đang tạo câu trả lời...'}
+            yield {'type': 'start', 'session_id': current_session_id}
+            
+            print("🤖 Generating streaming response from LLM...")
+            prompt_messages = self._build_prompt(message, context, chat_history)
+            
+            # Stream the response
+            full_response = ""
+            async for chunk in self.llm.astream(prompt_messages):
+                if chunk.content:
+                    full_response += chunk.content
+                    yield {'type': 'chunk', 'content': chunk.content}
+            
+            print(f"✅ Generated response: '{full_response[:100]}...'")
+            
+            # Step 5: Persistence
+            print("💾 Saving messages to database...")
+            self._save_messages(db, current_session_id, message, full_response, sources)
+            
+            # Step 6: Send completion with sources
+            yield {
+                'type': 'end',
+                'sources': sources,
+                'created_at': datetime.now()
+            }
+            
+        except ValueError as ve:
+            # Re-raise validation errors
+            raise ve
+        except SQLAlchemyError as db_error:
+            db.rollback()
+            print(f"❌ Database error: {db_error}")
+            raise RuntimeError(f"Database error occurred: {db_error}")
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Error processing chat: {e}")
+            raise RuntimeError(f"Failed to process chat: {e}")
+    
     def process_chat(
         self,
         db: Session,

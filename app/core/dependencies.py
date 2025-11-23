@@ -101,3 +101,44 @@ async def get_current_admin(
             detail="Not enough permissions. Admin access required."
         )
     return current_user
+
+
+async def get_current_user_ws(
+    token: str,
+    db: Session = Depends(get_db)
+) -> User:
+    """
+    Dependency to get current authenticated user from JWT token for WebSocket connections.
+    
+    Args:
+        token: JWT access token from query parameter
+        db: Database session
+        
+    Returns:
+        Current authenticated user
+        
+    Raises:
+        HTTPException: If credentials are invalid or user not found
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    # Decode token
+    payload = decode_access_token(token)
+    username: str = payload.get("sub")
+    user_id: int = payload.get("user_id")
+    
+    if username is None:
+        raise credentials_exception
+    
+    token_data = TokenData(username=username, user_id=user_id)
+    
+    # Get user from database
+    user = db.query(User).filter(User.username == token_data.username).first()
+    if user is None:
+        raise credentials_exception
+    
+    return user

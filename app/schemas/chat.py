@@ -189,3 +189,76 @@ class ChatHistoryResponse(BaseModel):
         }
 
 
+# WebSocket Schemas
+
+class ChatWSRequest(BaseModel):
+    """
+    WebSocket request model for chat messages.
+    """
+    message: str = Field(
+        ...,
+        min_length=1,
+        description="The user's question or message."
+    )
+    session_id: Optional[str] = Field(
+        None,
+        description="UUID of the chat session. If null, a new session will be created."
+    )
+
+    @validator('message')
+    def message_must_not_be_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Message cannot be empty or whitespace only')
+        return v.strip()
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "message": "Tôi bị đau đầu, nên uống thuốc gì?",
+                "session_id": "550e8400-e29b-41d4-a716-446655440000"
+            }
+        }
+
+
+class ChatWSResponse(BaseModel):
+    """
+    WebSocket response model for streaming chat responses.
+    """
+    type: str = Field(
+        ...,
+        description="Message type: 'start', 'chunk', 'end', 'error', 'status'"
+    )
+    session_id: Optional[str] = Field(None, description="Chat session ID")
+    content: Optional[str] = Field(None, description="Message content or chunk")
+    sources: Optional[List[Dict[str, Any]]] = Field(None, description="RAG sources (sent with 'end' type)")
+    created_at: Optional[datetime] = Field(None, description="Timestamp")
+    status: Optional[str] = Field(None, description="Status message for 'status' type")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "type": "chunk",
+                "session_id": "550e8400-e29b-41d4-a716-446655440000",
+                "content": "Bạn có thể sử dụng Paracetamol ",
+                "sources": None,
+                "created_at": "2025-11-24T00:11:23"
+            }
+        }
+
+
+class ChatWSError(BaseModel):
+    """
+    WebSocket error message model.
+    """
+    type: str = Field(default="error", description="Message type")
+    error: str = Field(..., description="Error message")
+    detail: Optional[str] = Field(None, description="Detailed error information")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "type": "error",
+                "error": "Authentication failed",
+                "detail": "Invalid or expired token"
+            }
+        }
