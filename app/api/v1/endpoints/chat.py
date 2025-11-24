@@ -3,14 +3,19 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 import json
 from datetime import datetime
+import logging
 
 from app.core.dependencies import get_db, get_current_user, get_current_user_ws
+from app.core.websocket_manager import connection_manager
+from app.core.rate_limiter import rate_limiter
 from app.schemas.chat import (
     ChatRequest, ChatResponse, ChatSessionListResponse, ChatSessionItem,
     ChatHistoryResponse, ChatMessageItem, ChatWSRequest, ChatWSResponse, ChatWSError
 )
 from app.services.chat_service import chat_service
 from app.models.database import ChatSessions, ChatMessages, User
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter()
@@ -251,17 +256,28 @@ async def websocket_chat_endpoint(
     
     Connection URL: ws://localhost:8000/api/v1/chat/ws?token=<JWT_TOKEN>
     
+    Features:
+    - JWT authentication
+    - Connection management with heartbeat
+    - Rate limiting (20 messages/min per user)
+    - Automatic reconnection support
+    
     Message format (from client):
     {
         "message": "Your question here",
         "session_id": "optional-session-uuid"
     }
     
+    Special messages:
+    - {"type": "pong"} - Response to ping heartbeat
+    
     Response format (to client):
+    - Ping: {"type": "ping"}
     - Status updates: {"type": "status", "status": "message"}
     - Start: {"type": "start", "session_id": "..."}
     - Chunks: {"type": "chunk", "content": "..."}
     - End: {"type": "end", "sources": [...], "created_at": "..."}
+    - Rate limit: {"type": "rate_limit", "retry_after": seconds}
     - Error: {"type": "error", "error": "...", "detail": "..."}
     
     Args:
@@ -269,13 +285,16 @@ async def websocket_chat_endpoint(
         token: JWT access token from query parameter
         db: Database session
     """
-    await websocket.accept()
+    current_user = None
     
     try:
+        # Accept connection first
+        await websocket.accept()
+        
         # Authenticate user
         try:
             current_user = await get_current_user_ws(token, db)
-            print(f"✅ WebSocket authenticated: user_id={current_user.id}, username={current_user.username}")
+            logger.info(f"WebSocket authenticated: user_id={current_user.id}, username={current_user.username}")
         except HTTPException as auth_error:
             error_msg = ChatWSError(
                 error="Authentication failed",
@@ -285,11 +304,34 @@ async def websocket_chat_endpoint(
             await websocket.close(code=1008)  # Policy violation
             return
         
+        # Register connection with connection manager
+        if not await connection_manager.connect(websocket, current_user.id):
+            error_msg = ChatWSError(
+                error="Connection limit exceeded",
+                detail=f"Maximum {connection_manager.max_connections_per_user} connections per user"
+            )
+            await websocket.send_json(error_msg.model_dump())
+            await websocket.close(code=1008)
+            return
+        
+        logger.info(
+            f"WebSocket connected: user_id={current_user.id}, "
+            f"connections={connection_manager.get_user_connections(current_user.id)}"
+        )
+        
         # Main message loop
         while True:
             try:
                 # Receive message from client
                 data = await websocket.receive_json()
+                
+                # Update activity timestamp
+                connection_manager.update_activity(websocket)
+                
+                # Handle pong response to ping
+                if isinstance(data, dict) and data.get("type") == "pong":
+                    logger.debug(f"Received pong from user {current_user.id}")
+                    continue
                 
                 # Validate request
                 try:
@@ -302,10 +344,31 @@ async def websocket_chat_endpoint(
                     await websocket.send_json(error_msg.model_dump())
                     continue
                 
-                print(f"📨 WebSocket message from user {current_user.id}: '{request.message[:50]}...'")
+                # Check rate limit
+                allowed, retry_after = rate_limiter.check_rate_limit(current_user.id)
+                if not allowed:
+                    logger.warning(
+                        f"Rate limit exceeded for user {current_user.id}, "
+                        f"retry after {retry_after:.1f}s"
+                    )
+                    rate_limit_msg = {
+                        "type": "rate_limit",
+                        "error": "Rate limit exceeded",
+                        "retry_after": retry_after,
+                        "detail": f"Please wait {retry_after:.1f} seconds before sending another message"
+                    }
+                    await websocket.send_json(rate_limit_msg)
+                    continue
+                
+                logger.info(
+                    f"WebSocket message from user {current_user.id}: "
+                    f"'{request.message[:50]}...'"
+                )
                 
                 # Process chat with streaming
                 try:
+                    message_start_time = datetime.now()
+                    
                     async for event in chat_service.process_chat_streaming(
                         db=db,
                         message=request.message,
@@ -339,8 +402,16 @@ async def websocket_chat_endpoint(
                         
                         # Send to client
                         await websocket.send_json(response.model_dump(mode='json'))
+                        
+                        # Update activity after each chunk
+                        connection_manager.update_activity(websocket)
                     
-                    print(f"✅ WebSocket streaming completed for user {current_user.id}")
+                    # Log completion time
+                    duration = (datetime.now() - message_start_time).total_seconds()
+                    logger.info(
+                        f"WebSocket streaming completed for user {current_user.id} "
+                        f"in {duration:.2f}s"
+                    )
                     
                 except ValueError as ve:
                     # Session not found or access denied
@@ -352,6 +423,7 @@ async def websocket_chat_endpoint(
                     
                 except RuntimeError as re:
                     # Service error
+                    logger.error(f"Service error for user {current_user.id}: {re}")
                     error_msg = ChatWSError(
                         error="Service error",
                         detail=str(re)
@@ -359,10 +431,10 @@ async def websocket_chat_endpoint(
                     await websocket.send_json(error_msg.model_dump())
                     
             except WebSocketDisconnect:
-                print(f"🔌 WebSocket disconnected: user_id={current_user.id}")
+                logger.info(f"WebSocket disconnected: user_id={current_user.id}")
                 break
             except Exception as e:
-                print(f"❌ Error in WebSocket message loop: {e}")
+                logger.error(f"Error in WebSocket message loop for user {current_user.id}: {e}")
                 error_msg = ChatWSError(
                     error="Internal error",
                     detail=str(e)
@@ -374,10 +446,18 @@ async def websocket_chat_endpoint(
                 break
                 
     except Exception as e:
-        print(f"❌ WebSocket connection error: {e}")
+        logger.error(f"WebSocket connection error: {e}")
         try:
             await websocket.close(code=1011)  # Internal error
         except:
             pass
+    finally:
+        # Always disconnect from connection manager
+        if current_user:
+            connection_manager.disconnect(websocket)
+            logger.info(
+                f"WebSocket cleanup: user_id={current_user.id}, "
+                f"remaining_connections={connection_manager.get_user_connections(current_user.id)}"
+            )
 
 

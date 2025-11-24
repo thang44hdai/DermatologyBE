@@ -73,6 +73,15 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to initialize chat service: {e}")
         logger.warning("Application will start but chat functionality will not work")
+    
+    # Start WebSocket connection manager heartbeat task
+    try:
+        from app.core.websocket_manager import connection_manager
+        import asyncio
+        asyncio.create_task(connection_manager.heartbeat_task())
+        logger.info("WebSocket heartbeat task started")
+    except Exception as e:
+        logger.error(f"Failed to start WebSocket heartbeat: {e}")
 
 
 @app.on_event("shutdown")
