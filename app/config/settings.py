@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     FAISS_INDEX_PATH: str = "faiss_index_store"
     EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     
+    # WebSocket Configuration
+    WS_HEARTBEAT_INTERVAL: int = 30  # Heartbeat ping interval in seconds
+    WS_CONNECTION_TIMEOUT: int = 60  # Connection timeout in seconds
+    WS_MAX_CONNECTIONS_PER_USER: int = 3  # Maximum concurrent connections per user
+    WS_RATE_LIMIT_MESSAGES_PER_MINUTE: int = 20  # Rate limit: messages per minute per user
+    WS_RATE_LIMIT_BURST_SIZE: int = 5  # Rate limit: burst allowance (extra tokens)
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

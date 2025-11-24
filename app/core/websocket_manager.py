@@ -212,8 +212,14 @@ class ConnectionManager:
 
 
 # Global connection manager instance
-connection_manager = ConnectionManager(
-    heartbeat_interval=30,
-    connection_timeout=60,
-    max_connections_per_user=3
-)
+def get_connection_manager():
+    """Get connection manager with settings from environment."""
+    from app.config.settings import settings
+    return ConnectionManager(
+        heartbeat_interval=settings.WS_HEARTBEAT_INTERVAL,
+        connection_timeout=settings.WS_CONNECTION_TIMEOUT,
+        max_connections_per_user=settings.WS_MAX_CONNECTIONS_PER_USER
+    )
+
+
+connection_manager = get_connection_manager()

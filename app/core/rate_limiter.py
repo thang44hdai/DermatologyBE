@@ -160,7 +160,13 @@ class RateLimiter:
 
 
 # Global rate limiter instance
-rate_limiter = RateLimiter(
-    messages_per_minute=20,
-    burst_size=5
-)
+def get_rate_limiter():
+    """Get rate limiter with settings from environment."""
+    from app.config.settings import settings
+    return RateLimiter(
+        messages_per_minute=settings.WS_RATE_LIMIT_MESSAGES_PER_MINUTE,
+        burst_size=settings.WS_RATE_LIMIT_BURST_SIZE
+    )
+
+
+rate_limiter = get_rate_limiter()

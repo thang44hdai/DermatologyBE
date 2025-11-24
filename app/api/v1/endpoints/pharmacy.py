@@ -80,13 +80,10 @@ async def get_pharmacies(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of records"),
     search: Optional[str] = Query(None, description="Search by name or address"),
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin)
+    db: Session = Depends(get_db)
 ):
     """
     Get list of all pharmacies with pagination and search
-    
-    **Requires Admin Role**
     
     Args:
         skip: Number of records to skip (for pagination)
@@ -118,12 +115,9 @@ async def get_pharmacies(
 async def get_pharmacy(
     pharmacy_id: int,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin)
 ):
     """
     Get pharmacy by ID
-    
-    **Requires Admin Role**
     
     Args:
         pharmacy_id: Pharmacy ID
@@ -235,12 +229,9 @@ async def search_nearby_pharmacies(
     radius_km: float = Query(5.0, ge=0.1, le=50, description="Search radius in kilometers"),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin)
 ):
     """
     Search for pharmacies near a location with distance calculation
-    
-    **Requires Admin Role**
     
     **Uses Haversine formula for accurate distance calculation**
     

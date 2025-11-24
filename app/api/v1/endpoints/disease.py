@@ -68,13 +68,10 @@ async def get_diseases(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(20, ge=1, le=100, description="Maximum number of records"),
     search: Optional[str] = Query(None, description="Search by disease name"),
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin)
+    db: Session = Depends(get_db)
 ):
     """
     Get list of diseases with search and medicines
-    
-    **Requires Admin Role**
     
     Args:
         skip: Number of records to skip (for pagination)
@@ -102,13 +99,10 @@ async def get_diseases(
 @router.get("/{disease_id}", response_model=DiseaseDetailResponse)
 async def get_disease(
     disease_id: int,
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin)
+    db: Session = Depends(get_db)
 ):
     """
     Get disease by ID with medicines list
-    
-    **Requires Admin Role**
     
     Args:
         disease_id: Disease ID
@@ -119,28 +113,25 @@ async def get_disease(
     return disease_service.get_disease_detail(db, disease_id)
 
 
-@router.get("/{disease_id}/detail", response_model=DiseaseDetailResponse)
-async def get_disease_detail(
-    disease_id: int,
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin)
-):
-    """
-    Get disease with detailed statistics
+# @router.get("/{disease_id}/detail", response_model=DiseaseDetailResponse)
+# async def get_disease_detail(
+#     disease_id: int,
+#     db: Session = Depends(get_db)
+# ):
+#     """
+#     Get disease with detailed statistics
     
-    **Requires Admin Role**
+#     Returns disease information with counts of:
+#     - Related medicines
+#     - Diagnosis history records
     
-    Returns disease information with counts of:
-    - Related medicines
-    - Diagnosis history records
-    
-    Args:
-        disease_id: Disease ID
+#     Args:
+#         disease_id: Disease ID
         
-    Returns:
-        Disease information with related counts
-    """
-    return disease_service.get_disease_detail(db, disease_id)
+#     Returns:
+#         Disease information with related counts
+#     """
+#     return disease_service.get_disease_detail(db, disease_id)
 
 
 @router.put("/{disease_id}", response_model=DiseaseResponse)

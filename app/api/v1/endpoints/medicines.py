@@ -111,12 +111,9 @@ async def get_medicines(
     disease_id: Optional[int] = Query(None, description="Filter by disease ID"),
     medicine_type: Optional[str] = Query(None, description="Filter by medicine type"),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin)
 ):
     """
     Get list of medicines with filters
-    
-    **Requires Admin Role**
     
     Args:
         skip: Number of records to skip (for pagination)
@@ -152,12 +149,9 @@ async def get_medicines(
 async def get_medicine(
     medicine_id: int,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin)
 ):
     """
     Get medicine by ID
-    
-    **Requires Admin Role**
     
     Args:
         medicine_id: Medicine ID
@@ -414,12 +408,9 @@ async def get_pharmacy_medicines(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(50, ge=1, le=200, description="Maximum number of records"),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin)
 ):
     """
     Get all medicines available at a specific pharmacy
-    
-    **Requires Admin Role**
     
     Args:
         pharmacy_id: Pharmacy ID
@@ -436,12 +427,9 @@ async def get_pharmacy_medicines(
 async def get_medicine_availability(
     medicine_id: int,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin)
 ):
     """
     Get all pharmacies where a medicine is available
-    
-    **Requires Admin Role**
     
     Args:
         medicine_id: Medicine ID
