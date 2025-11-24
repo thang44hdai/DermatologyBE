@@ -106,11 +106,11 @@ class ChatService:
             
             return chat_session
         else:
-            # Create new session
+            # Create new session with default title (will be updated after first message)
             new_session = ChatSessions(
                 id=str(uuid.uuid4()),
                 user_id=user_id,
-                title="New Chat",  # TODO: Generate title from first message
+                title="New Chat",  # Will be updated from first message
                 created_at=datetime.now()
             )
             db.add(new_session)
@@ -119,6 +119,49 @@ class ChatService:
             
             print(f"✨ Created new chat session: {new_session.id}")
             return new_session
+    
+    def _generate_session_title(self, message: str, max_length: int = 50) -> str:
+        """
+        Generate a concise session title from the first user message.
+        
+        Args:
+            message: User's first message
+            max_length: Maximum title length
+            
+        Returns:
+            Generated title string
+        """
+        # Clean and truncate message
+        title = message.strip()
+        
+        # Remove excess whitespace
+        title = ' '.join(title.split())
+        
+        # Truncate if too long
+        if len(title) > max_length:
+            title = title[:max_length].rsplit(' ', 1)[0] + '...'
+        
+        return title if title else "New Chat"
+    
+    def _update_session_title(self, db: Session, session_id: str, message: str):
+        """
+        Update session title if it's still the default "New Chat".
+        
+        Args:
+            db: Database session
+            session_id: Chat session ID
+            message: User's message to generate title from
+        """
+        session = db.query(ChatSessions).filter(
+            ChatSessions.id == session_id
+        ).first()
+        
+        if session and session.title == "New Chat":
+            new_title = self._generate_session_title(message)
+            session.title = new_title
+            session.updated_at = datetime.now()
+            db.commit()
+            print(f"📝 Updated session title to: '{new_title}'")
     
     def _get_chat_history(self, db: Session, session_id: str, limit: int = 5) -> List[Dict[str, str]]:
         """
@@ -354,11 +397,15 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
             
             print(f"✅ Generated response: '{full_response[:100]}...'")
             
-            # Step 5: Persistence
+            # Step 5: Update session title if it's a new session
+            if not session_id:  # New session - update title from first message
+                self._update_session_title(db, current_session_id, message)
+            
+            # Step 6: Persistence
             print("💾 Saving messages to database...")
             self._save_messages(db, current_session_id, message, full_response, sources)
             
-            # Step 6: Send completion with sources
+            # Step 7: Send completion with sources
             yield {
                 'type': 'end',
                 'sources': sources,

@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 # Thêm thư mục hiện tại vào path để import được module app
 sys.path.append(os.getcwd())
 
@@ -47,9 +48,10 @@ def prepare_documents(medicines_list):
         # Lấy ảnh đầu tiên (giả sử images là list JSON hoặc string)
         # Tùy vào cách bạn lưu trong DB mà xử lý
         image_url = ""
-        if hasattr(item, 'images') and item.images:
-             # Giả sử logic lấy ảnh ở đây
-             image_url = str(item.images[0]) if isinstance(item.images, list) else str(item.images)
+        if hasattr(item, 'image_url') and item.image_url:
+             # Giả sử logic lấy ảnh ở đây (có nhiều ảnh)
+             image_url = json.loads(item.image_url)[0]
+             
 
         # Tạo nội dung vector
         content_text = (
