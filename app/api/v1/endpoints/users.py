@@ -1,6 +1,11 @@
+"""
+User API Endpoints - Enhanced with FCM token support
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import BaseModel, Field
 
 from app.core.dependencies import get_db, get_current_active_user, get_current_admin
 from app.schemas.user import UserCreate, UserResponse, UserRoleUpdate
@@ -8,6 +13,11 @@ from app.services.user_service import UserService
 from app.models.database import User
 
 router = APIRouter()
+
+
+class FCMTokenUpdate(BaseModel):
+    """Schema for FCM token registration"""
+    fcm_token: str = Field(..., min_length=1, max_length=255, description="Firebase Cloud Messaging token")
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -105,3 +115,58 @@ def update_user_role(
     
     updated_user = UserService.update_user_role(db, user_id, role_update.role)
     return updated_user
+
+
+@router.post("/fcm-token", status_code=status.HTTP_200_OK)
+def register_fcm_token(
+    token_data: FCMTokenUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Register or update FCM token for push notifications
+    
+    **FCM Token** là device token duy nhất từ Firebase cho mỗi thiết bị.
+    Mobile app sử dụng Firebase SDK để lấy token và gửi lên đây.
+    
+    Args:
+        fcm_token: Firebase Cloud Messaging device token
+        
+    Returns:
+        Success message
+        
+    Example (Flutter):
+        ```dart
+        String? token = await FirebaseMessaging.instance.getToken();
+        await api.post('/users/fcm-token', {'fcm_token': token});
+        ```
+    """
+    # Update user's FCM token
+    current_user.fcm_token = token_data.fcm_token
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "FCM token registered successfully",
+        "user_id": current_user.id
+    }
+
+
+@router.delete("/fcm-token", status_code=status.HTTP_200_OK)
+def unregister_fcm_token(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Unregister FCM token (e.g., on logout)
+    
+    Returns:
+        Success message
+    """
+    current_user.fcm_token = None
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "FCM token unregistered successfully"
+    }

@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     WS_RATE_LIMIT_MESSAGES_PER_MINUTE: int = 20  # Rate limit: messages per minute per user
     WS_RATE_LIMIT_BURST_SIZE: int = 5  # Rate limit: burst allowance (extra tokens)
     
+    # Notification & Reminder Configuration
+    NOTIFICATION_TIMEZONE: str = "Asia/Ho_Chi_Minh"  # UTC+7
+    REMINDER_CHECK_INTERVAL: int = 60  # Check reminders every 60 seconds
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -82,12 +82,38 @@ async def startup_event():
         logger.info("WebSocket heartbeat task started")
     except Exception as e:
         logger.error(f"Failed to start WebSocket heartbeat: {e}")
+    
+    # Initialize Notification Service (Firebase)
+    try:
+        from app.services.notification_service import notification_service
+        notification_service.initialize()
+        logger.info("Notification service initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize notification service: {e}")
+        logger.warning("Push notifications will not work")
+    
+    # Start Medication Reminder Scheduler
+    try:
+        from app.services.scheduler_service import scheduler_service
+        scheduler_service.start()
+        logger.info("Medication reminder scheduler started")
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
+        logger.warning("Medication reminders will not be sent automatically")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
     logger.info("Shutting down application...")
+    
+    # Shutdown scheduler
+    try:
+        from app.services.scheduler_service import scheduler_service
+        scheduler_service.shutdown()
+        logger.info("Scheduler shutdown complete")
+    except Exception as e:
+        logger.error(f"Error shutting down scheduler: {e}")
 
 # ==========================================
 # INCLUDE ROUTERS
