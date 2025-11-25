@@ -16,7 +16,9 @@ from app.schemas.user import (
     LoginRequest,
     RefreshTokenRequest
 )
+from app.schemas.oauth import GoogleAuthRequest, FacebookAuthRequest, OAuth2Response
 from app.services.user_service import UserService
+from app.services.oauth2_service import oauth2_service
 from app.models.database import User
 from app.config import settings
 
@@ -217,3 +219,111 @@ async def test_token(current_user: User = Depends(get_current_active_user)):
             "email": current_user.email
         }
     }
+
+
+# ===== OAuth2 Endpoints for Mobile =====
+
+@router.post("/google", response_model=OAuth2Response)
+async def google_auth(
+    request: GoogleAuthRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Authenticate with Google ID token from Android app
+    
+    Android app flow:
+    1. Use Google Sign-In SDK to get ID token
+    2. Send ID token to this endpoint
+    3. Backend verifies token and returns JWT
+    
+    Args:
+        id_token: Google ID token from Android SDK
+        
+    Returns:
+        JWT access token, user info, and is_new_user flag
+    """
+    # Verify Google ID token
+    try:
+        user_info = await oauth2_service.verify_google_id_token(request.id_token)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
+        )
+    
+    # Get or create user
+    user, is_new = oauth2_service.get_or_create_oauth_user(
+        db=db,
+        provider="google",
+        oauth_id=user_info["sub"],
+        email=user_info.get("email"),
+        name=user_info.get("name"),
+        avatar_url=user_info.get("picture")
+    )
+    
+    # Generate JWT
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username, "user_id": user.id},
+        expires_delta=access_token_expires
+    )
+    
+    return OAuth2Response(
+        access_token=access_token,
+        token_type="bearer",
+        user=user,
+        is_new_user=is_new
+    )
+
+
+@router.post("/facebook", response_model=OAuth2Response)  
+async def facebook_auth(
+    request: FacebookAuthRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Authenticate with Facebook access token from Android app
+    
+    Android app flow:
+    1. Use Facebook SDK to get access token
+    2. Send token to this endpoint
+    3. Backend verifies token and returns JWT
+    
+    Args:
+        access_token: Facebook access token from Android SDK
+        
+    Returns:
+        JWT access token, user info, and is_new_user flag
+    """
+    # Verify Facebook token
+    try:
+        user_info = await oauth2_service.verify_facebook_token(request.access_token)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
+        )
+    
+    # Get or create user
+    user, is_new = oauth2_service.get_or_create_oauth_user(
+        db=db,
+        provider="facebook",
+        oauth_id=user_info["id"],
+        email=user_info.get("email"),
+        name=user_info.get("name"),
+        avatar_url=user_info.get("picture")
+    )
+    
+    # Generate JWT
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username, "user_id": user.id},
+        expires_delta=access_token_expires
+    )
+    
+    return OAuth2Response(
+        access_token=access_token,
+        token_type="bearer",
+        user=user,
+        is_new_user=is_new
+    )

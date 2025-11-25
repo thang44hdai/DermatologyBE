@@ -78,6 +78,11 @@ class Settings(BaseSettings):
     NOTIFICATION_TIMEZONE: str = "Asia/Ho_Chi_Minh"  # UTC+7
     REMINDER_CHECK_INTERVAL: int = 60  # Check reminders every 60 seconds
     
+    # OAuth2 Configuration
+    GOOGLE_CLIENT_ID: str = ""  # Google OAuth client ID for Android
+    FACEBOOK_APP_ID: str = ""
+    FACEBOOK_APP_SECRET: str = ""
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -23,6 +23,9 @@ class User(Base):
     avatar_url = Column(String(255), nullable=True)
     date_of_birth = Column(DateTime, nullable=True)
     fcm_token = Column(String(255), nullable=True)  # Firebase Cloud Messaging token
+    oauth_provider = Column(String(20), nullable=True)  # google, facebook, or null
+    google_id = Column(String(255), nullable=True, unique=True)  # Google user ID
+    facebook_id = Column(String(255), nullable=True, unique=True)  # Facebook user ID
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
