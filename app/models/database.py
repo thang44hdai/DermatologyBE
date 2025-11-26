@@ -259,6 +259,7 @@ class MedicationReminder(Base):
     start_date = Column(DateTime, nullable=False)
     end_date = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    is_notification_enabled = Column(Boolean, default=True, nullable=False)  # Notification toggle
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())

@@ -20,6 +20,7 @@ class ReminderCreate(BaseModel):
     days_of_week: Optional[List[int]] = Field(None, description="For weekly: 0-6 (Monday-Sunday)")
     start_date: date = Field(..., description="Start date for reminder")
     end_date: Optional[date] = Field(None, description="Optional end date")
+    is_notification_enabled: bool = Field(default=True, description="Enable push notifications")
     notes: Optional[str] = Field(None, description="Additional notes")
     
     @field_validator('medicine_name')
@@ -65,6 +66,7 @@ class ReminderUpdate(BaseModel):
     days_of_week: Optional[List[int]] = Field(None)
     end_date: Optional[date] = None
     is_active: Optional[bool] = None
+    is_notification_enabled: Optional[bool] = None
     notes: Optional[str] = None
     
     @field_validator('times')
@@ -102,6 +104,7 @@ class ReminderResponse(BaseModel):
     start_date: date
     end_date: Optional[date]
     is_active: bool
+    is_notification_enabled: bool
     notes: Optional[str]
     created_at: datetime
     updated_at: Optional[datetime]
@@ -185,3 +188,37 @@ class AIAdvice(BaseModel):
 class AIAdviceRequest(BaseModel):
     """Request schema for AI advice"""
     medicine_name: str = Field(..., min_length=1, max_length=255)
+
+
+# Calendar View Schemas
+
+class CalendarDaySchedule(BaseModel):
+    """Schedule for a single day"""
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    has_reminders: bool = Field(..., description="True if any reminders on this day")
+    reminder_count: int = Field(..., description="Total reminders scheduled")
+    times: List[str] = Field(..., description="All scheduled times (HH:MM)")
+
+
+class CalendarMonthOverview(BaseModel):
+    """30-day calendar overview (15 days before + 15 days after today)"""
+    start_date: str = Field(..., description="Start date in YYYY-MM-DD")
+    end_date: str = Field(..., description="End date in YYYY-MM-DD")
+    days: List[CalendarDaySchedule] = Field(..., description="Daily schedules")
+
+
+class ReminderScheduleItem(BaseModel):
+    """Single reminder schedule item"""
+    reminder_id: int
+    medicine_name: str
+    time: str = Field(..., description="Time in HH:MM format")
+    dosage: Optional[str]
+    status: str = Field(..., description="Status: not_taken, taken, snoozed, or skipped")
+    is_taken: bool = Field(..., description="Already logged as taken (deprecated, use status)")
+
+
+class DailyScheduleDetail(BaseModel):
+    """Detailed schedule for a specific day"""
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    total_reminders: int = Field(..., description="Total reminders scheduled")
+    schedules: List[ReminderScheduleItem] = Field(..., description="Reminder schedule items")

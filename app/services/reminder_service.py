@@ -66,6 +66,15 @@ class ReminderService:
                 detail="days_of_week required for weekly frequency"
             )
         
+        # Auto-convert weekly with all 7 days to daily
+        frequency = reminder_data.frequency
+        days_of_week = reminder_data.days_of_week
+        
+        if frequency == "weekly" and days_of_week and len(days_of_week) == 7:
+            frequency = "daily"
+            days_of_week = None
+            logger.info(f"Auto-converted weekly (all 7 days) to daily for user {user_id}")
+        
         # Create reminder
         reminder = MedicationReminder(
             user_id=user_id,
@@ -73,11 +82,12 @@ class ReminderService:
             medicine_name=reminder_data.medicine_name,
             title=reminder_data.title,
             dosage=reminder_data.dosage,
-            frequency=reminder_data.frequency,
+            frequency=frequency,
             times=json.dumps(reminder_data.times),
-            days_of_week=json.dumps(reminder_data.days_of_week) if reminder_data.days_of_week else None,
+            days_of_week=json.dumps(days_of_week) if days_of_week else None,
             start_date=reminder_data.start_date,
             end_date=reminder_data.end_date,
+            is_notification_enabled=reminder_data.is_notification_enabled,
             notes=reminder_data.notes,
             is_active=True
         )
@@ -265,6 +275,168 @@ class ReminderService:
         logger.info(f"{status_str} reminder {reminder_id} for user {user_id}")
         
         return reminder
+    
+    @staticmethod
+    def get_calendar_overview(
+        db: Session,
+        user_id: int,
+        start_date: date,
+        end_date: date
+    ) -> List[dict]:
+        """
+        Get calendar overview for date range (default: 15 days before + 15 days after today)
+        
+        Shows which days have reminders and how many
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            start_date: Start date
+            end_date: End date
+            
+        Returns:
+            List of daily schedules with reminder counts
+        """
+        from datetime import timedelta
+        
+        # Get all active reminders
+        reminders = db.query(MedicationReminder).filter(
+            and_(
+                MedicationReminder.user_id == user_id,
+                MedicationReminder.is_active == True,
+                or_(
+                    MedicationReminder.end_date == None,
+                    MedicationReminder.end_date >= start_date
+                ),
+                MedicationReminder.start_date <= end_date
+            )
+        ).all()
+        
+        # Build calendar
+        calendar_days = []
+        current_date = start_date
+        
+        while current_date <= end_date:
+            times_set = set()
+            reminder_count = 0
+            
+            # Check each reminder
+            for reminder in reminders:
+                if reminder.start_date.date() <= current_date <= (reminder.end_date.date() if reminder.end_date else date.max):
+                    # Check if reminder applies on this day
+                    if reminder.frequency == "daily":
+                        reminder_count += len(json.loads(reminder.times))
+                        times_set.update(json.loads(reminder.times))
+                    elif reminder.frequency == "weekly":
+                        days_of_week = json.loads(reminder.days_of_week) if reminder.days_of_week else []
+                        if current_date.weekday() in days_of_week:
+                            reminder_count += len(json.loads(reminder.times))
+                            times_set.update(json.loads(reminder.times))
+            
+            calendar_days.append({
+                "date": current_date.isoformat(),
+                "has_reminders": reminder_count > 0,
+                "reminder_count": reminder_count,
+                "times": sorted(list(times_set))
+            })
+            
+            current_date += timedelta(days=1)
+        
+        return calendar_days
+    
+    @staticmethod
+    def get_daily_schedule(
+        db: Session,
+        user_id: int,
+        target_date: date
+    ) -> dict:
+        """
+        Get detailed schedule for a specific day
+        
+        Returns all reminders grouped by time with taken status
+        
+        Args:
+            db: Database session
+            user_id: User ID
+            target_date: Target date
+            
+        Returns:
+            Daily schedule with reminder details and adherence status
+        """
+        from app.models.database import AdherenceLog
+        from datetime import datetime, timedelta
+        
+        # Get all active reminders that apply on this date
+        reminders = db.query(MedicationReminder).filter(
+            and_(
+                MedicationReminder.user_id == user_id,
+                MedicationReminder.is_active == True,
+                MedicationReminder.start_date <= datetime.combine(target_date, datetime.min.time()),
+                or_(
+                    MedicationReminder.end_date == None,
+                    MedicationReminder.end_date >= datetime.combine(target_date, datetime.max.time())
+                )
+            )
+        ).all()
+        
+        # Build schedule items
+        schedules = []
+        
+        for reminder in reminders:
+            times = json.loads(reminder.times)
+            
+            # Check if reminder applies on this day
+            applies = False
+            if reminder.frequency == "daily":
+                applies = True
+            elif reminder.frequency == "weekly":
+                days_of_week = json.loads(reminder.days_of_week) if reminder.days_of_week else []
+                if target_date.weekday() in days_of_week:
+                    applies = True
+            
+            if not applies:
+                continue
+            
+            # For each time slot
+            for time_str in times:
+                # Check adherence status
+                scheduled_datetime = datetime.combine(target_date, datetime.strptime(time_str, "%H:%M").time())
+                
+                # Find adherence log for this specific time
+                log = db.query(AdherenceLog).filter(
+                    and_(
+                        AdherenceLog.reminder_id == reminder.id,
+                        AdherenceLog.user_id == user_id,
+                        AdherenceLog.scheduled_time >= scheduled_datetime,
+                        AdherenceLog.scheduled_time < scheduled_datetime + timedelta(minutes=1)
+                    )
+                ).first()
+                
+                # Determine status
+                if log:
+                    status = log.action_type  # "taken", "snoozed", or "skipped"
+                    is_taken = log.action_type == "taken"
+                else:
+                    status = "not_taken"
+                    is_taken = False
+                
+                schedules.append({
+                    "reminder_id": reminder.id,
+                    "medicine_name": reminder.medicine_name,
+                    "time": time_str,
+                    "dosage": reminder.dosage,
+                    "status": status,
+                    "is_taken": is_taken
+                })
+        
+        # Sort by time
+        schedules.sort(key=lambda x: x["time"])
+        
+        return {
+            "date": target_date.isoformat(),
+            "total_reminders": len(schedules),
+            "schedules": schedules
+        }
 
 
 # Create singleton instance

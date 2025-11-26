@@ -23,7 +23,10 @@ from app.schemas.reminder import (
     AdherenceStats,
     AdherenceChartData,
     AIAdvice,
-    AIAdviceRequest
+    AIAdviceRequest,
+    CalendarMonthOverview,
+    CalendarDaySchedule,
+    DailyScheduleDetail
 )
 from app.models.database import User
 
@@ -131,6 +134,91 @@ async def get_reminders(
         total=total,
         skip=skip,
         limit=limit
+    )
+
+
+# ===== Calendar View Endpoints =====
+# IMPORTANT: These must come BEFORE /{reminder_id} to avoid routing conflicts
+
+@router.get("/calendar", response_model=CalendarMonthOverview)
+async def get_calendar_overview(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD), default: 15 days before today"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD), default: 15 days after today"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get 30-day calendar overview of medication schedule
+    
+    Default range: 15 days before today + 15 days after today (30 days total)
+    
+    Shows:
+    - Which days have reminders
+    - How many reminders per day
+    - What times they're scheduled
+    
+    Returns:
+        Calendar overview with daily reminder counts
+    """
+    from datetime import date, timedelta
+    
+    # Default: 15 days before and after today
+    today = date.today()
+    
+    if start_date:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+    else:
+        start = today - timedelta(days=15)
+    
+    if end_date:
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    else:
+        end = today + timedelta(days=15)
+    
+    # Get calendar data
+    days = reminder_service.get_calendar_overview(
+        db=db,
+        user_id=current_user.id,
+        start_date=start,
+        end_date=end
+    )
+    
+    return CalendarMonthOverview(
+        start_date=start.isoformat(),
+        end_date=end.isoformat(),
+        days=days
+    )
+
+
+@router.get("/calendar/{target_date}", response_model=DailyScheduleDetail)
+async def get_daily_schedule(
+    target_date: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get detailed schedule for a specific day
+    
+    Returns all reminders for the day grouped by time, with taken status
+    
+    Args:
+        target_date: Date in YYYY-MM-DD format
+        
+    Returns:
+        Detailed daily schedule with adherence status
+    """
+    try:
+        target = datetime.strptime(target_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use YYYY-MM-DD"
+        )
+    
+    return reminder_service.get_daily_schedule(
+        db=db,
+        user_id=current_user.id,
+        target_date=target
     )
 
 
@@ -431,6 +519,3 @@ async def get_reminder_advice(
     )
     
     return advice
-
-
-

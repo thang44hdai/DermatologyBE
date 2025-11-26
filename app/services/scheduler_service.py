@@ -148,6 +148,11 @@ class SchedulerService:
                 logger.error(f"User {reminder.user_id} not found for reminder {reminder.id}")
                 return
             
+            # Check if notification is enabled for this reminder
+            if not reminder.is_notification_enabled:
+                logger.info(f"⏸️ Skipped notification for reminder {reminder.id} (disabled by user)")
+                return
+            
             # Prepare notification data
             title = "💊 Nhắc nhở uống thuốc"
             body = f"{reminder.title} - {reminder.medicine_name}"
