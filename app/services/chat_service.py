@@ -1,6 +1,6 @@
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -37,16 +37,16 @@ class ChatService:
         This should be called on application startup.
         """
         try:
-            print("🚀 Initializing ChatService...")
+            print("Initializing ChatService...")
             
             # Load HuggingFace Embeddings
-            print("📦 Loading HuggingFace embeddings...")
+            print("Loading HuggingFace embeddings...")
             self.embeddings = HuggingFaceEmbeddings(
                 model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
             )
             
             # Load FAISS Vector Database
-            print("📚 Loading FAISS index from local storage...")
+            print("Loading FAISS index from local storage...")
             self.vector_db = FAISS.load_local(
                 "faiss_index_store",
                 self.embeddings,
@@ -54,20 +54,20 @@ class ChatService:
             )
             
             # Initialize ChatOpenAI (pointing to local llama-server)
-            print("🤖 Initializing LLM client...")
+            print("Initializing LLM client...")
             self.llm = ChatOpenAI(
                 base_url="http://localhost:8080/v1",
-                api_key="not-needed",  # Local server doesn't need real API key
-                model="local-model",  # Model name doesn't matter for local server
+                api_key="not-needed",  
+                model="local-model",
                 temperature=0.7,
                 max_tokens=512
             )
             
             self.initialized = True
-            print("✅ ChatService initialized successfully!")
+            print("ChatService initialized successfully!")
             
         except Exception as e:
-            print(f"❌ Failed to initialize ChatService: {e}")
+            print(f"Failed to initialize ChatService: {e}")
             raise RuntimeError(f"ChatService initialization failed: {e}")
     
     def _ensure_initialized(self):
@@ -117,7 +117,7 @@ class ChatService:
             db.commit()
             db.refresh(new_session)
             
-            print(f"✨ Created new chat session: {new_session.id}")
+            print(f"Created new chat session: {new_session.id}")
             return new_session
     
     def _generate_session_title(self, message: str, max_length: int = 50) -> str:
@@ -161,7 +161,7 @@ class ChatService:
             session.title = new_title
             session.updated_at = datetime.now()
             db.commit()
-            print(f"📝 Updated session title to: '{new_title}'")
+            print(f"Updated session title to: '{new_title}'")
     
     def _get_chat_history(self, db: Session, session_id: str, limit: int = 5) -> List[Dict[str, str]]:
         """
@@ -216,9 +216,9 @@ class ChatService:
         for doc, score in docs_with_scores:
             if score < self.SIMILARITY_THRESHOLD:
                 filtered_docs.append((doc, score))
-                print(f"  ✅ Relevant document (score: {score:.4f}): {doc.metadata.get('name', 'Unknown')[:50]}...")
+                print(f"Relevant document (score: {score:.4f}): {doc.metadata.get('name', 'Unknown')[:50]}...")
             else:
-                print(f"  ❌ Filtered out (score: {score:.4f}): {doc.metadata.get('name', 'Unknown')[:50]}...")
+                print(f"Filtered out (score: {score:.4f}): {doc.metadata.get('name', 'Unknown')[:50]}...")
         
         # Extract context and metadata from filtered documents
         context_parts = []
@@ -233,7 +233,7 @@ class ChatService:
         else:
             # No relevant documents found
             context_text = ""
-            print("  ℹ️  No relevant documents found (all filtered by threshold)")
+            print("No relevant documents found (all filtered by threshold)")
         
         return context_text, sources
     
@@ -328,7 +328,7 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
             role="assistant",
             content=ai_response,
             sources=sources_json,
-            created_at=datetime.now()
+            created_at=datetime.now() + timedelta(seconds=1)
         )
         db.add(ai_msg)
         
