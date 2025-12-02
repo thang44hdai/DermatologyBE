@@ -62,19 +62,23 @@ async def create_reminder(
     reminder = reminder_service.create_reminder(db, reminder_data, current_user.id)
     
     # Parse JSON fields for response
+    times_data = json.loads(reminder.times)
+    # times_data is always new format from create (TimeSchedule objects)
     return ReminderResponse(
         id=reminder.id,
         user_id=reminder.user_id,
         medicine_id=reminder.medicine_id,
         medicine_name=reminder.medicine_name,
-        title=reminder.title,
         dosage=reminder.dosage,
+        unit=reminder.unit,
+        meal_timing=reminder.meal_timing,
         frequency=reminder.frequency,
-        times=json.loads(reminder.times),
+        times=times_data,
         days_of_week=json.loads(reminder.days_of_week) if reminder.days_of_week else None,
         start_date=reminder.start_date,
         end_date=reminder.end_date,
         is_active=reminder.is_active,
+        is_notification_enabled=reminder.is_notification_enabled,
         notes=reminder.notes,
         created_at=reminder.created_at,
         updated_at=reminder.updated_at,
@@ -110,19 +114,31 @@ async def get_reminders(
     # Convert to response models
     reminder_responses = []
     for r in reminders:
+        times_data = json.loads(r.times)
+        # Handle backward compatibility: convert old format to new format
+        if times_data and isinstance(times_data[0], str):
+            # Old format: ["09:00", "14:00"]
+            # Convert to new format with default values
+            times_data = [
+                {"time": t, "period": "morning", "dosage": "1"}
+                for t in times_data
+            ]
+        
         reminder_responses.append(ReminderResponse(
             id=r.id,
             user_id=r.user_id,
             medicine_id=r.medicine_id,
             medicine_name=r.medicine_name,
-            title=r.title,
             dosage=r.dosage,
+            unit=r.unit,
+            meal_timing=r.meal_timing,
             frequency=r.frequency,
-            times=json.loads(r.times),
+            times=times_data,
             days_of_week=json.loads(r.days_of_week) if r.days_of_week else None,
             start_date=r.start_date,
             end_date=r.end_date,
             is_active=r.is_active,
+            is_notification_enabled=r.is_notification_enabled,
             notes=r.notes,
             created_at=r.created_at,
             updated_at=r.updated_at,
@@ -142,50 +158,42 @@ async def get_reminders(
 
 @router.get("/calendar", response_model=CalendarMonthOverview)
 async def get_calendar_overview(
-    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD), default: 15 days before today"),
-    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD), default: 15 days after today"),
+    week_offset: int = Query(0, description="Week offset from current week (0=this week, -1=last week, 1=next week)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get 30-day calendar overview of medication schedule
+    Get weekly calendar overview of medication schedule (Monday-Sunday)
     
-    Default range: 15 days before today + 15 days after today (30 days total)
-    
-    Shows:
-    - Which days have reminders
-    - How many reminders per day
-    - What times they're scheduled
+    Args:
+        week_offset: Week offset from current week (default: 0 for this week)
     
     Returns:
-        Calendar overview with daily reminder counts
+        Calendar overview with daily reminder counts for the week
     """
     from datetime import date, timedelta
     
-    # Default: 15 days before and after today
+    # Get Monday of the target week
     today = date.today()
+    # today.weekday(): 0=Monday, 6=Sunday
+    days_since_monday = today.weekday()
+    this_monday = today - timedelta(days=days_since_monday)
     
-    if start_date:
-        start = datetime.strptime(start_date, "%Y-%m-%d").date()
-    else:
-        start = today - timedelta(days=15)
-    
-    if end_date:
-        end = datetime.strptime(end_date, "%Y-%m-%d").date()
-    else:
-        end = today + timedelta(days=15)
+    # Apply week offset
+    target_monday = this_monday + timedelta(weeks=week_offset)
+    target_sunday = target_monday + timedelta(days=6)
     
     # Get calendar data
     days = reminder_service.get_calendar_overview(
         db=db,
         user_id=current_user.id,
-        start_date=start,
-        end_date=end
+        start_date=target_monday,
+        end_date=target_sunday
     )
     
     return CalendarMonthOverview(
-        start_date=start.isoformat(),
-        end_date=end.isoformat(),
+        start_date=target_monday.isoformat(),
+        end_date=target_sunday.isoformat(),
         days=days
     )
 
@@ -239,19 +247,29 @@ async def get_reminder(
     """
     reminder = reminder_service.get_reminder(db, reminder_id, current_user.id)
     
+    times_data = json.loads(reminder.times)
+    # Handle backward compatibility
+    if times_data and isinstance(times_data[0], str):
+        times_data = [
+            {"time": t, "period": "morning", "dosage": "1"}
+            for t in times_data
+        ]
+    
     return ReminderResponse(
         id=reminder.id,
         user_id=reminder.user_id,
         medicine_id=reminder.medicine_id,
         medicine_name=reminder.medicine_name,
-        title=reminder.title,
         dosage=reminder.dosage,
+        unit=reminder.unit,
+        meal_timing=reminder.meal_timing,
         frequency=reminder.frequency,
-        times=json.loads(reminder.times),
+        times=times_data,
         days_of_week=json.loads(reminder.days_of_week) if reminder.days_of_week else None,
         start_date=reminder.start_date,
         end_date=reminder.end_date,
         is_active=reminder.is_active,
+        is_notification_enabled=reminder.is_notification_enabled,
         notes=reminder.notes,
         created_at=reminder.created_at,
         updated_at=reminder.updated_at,
@@ -288,19 +306,29 @@ async def update_reminder(
         db, reminder_id, current_user.id, update_data
     )
     
+    times_data = json.loads(reminder.times)
+    # Handle backward compatibility
+    if times_data and isinstance(times_data[0], str):
+        times_data = [
+            {"time": t, "period": "morning", "dosage": "1"}
+            for t in times_data
+        ]
+    
     return ReminderResponse(
         id=reminder.id,
         user_id=reminder.user_id,
         medicine_id=reminder.medicine_id,
         medicine_name=reminder.medicine_name,
-        title=reminder.title,
         dosage=reminder.dosage,
+        unit=reminder.unit,
+        meal_timing=reminder.meal_timing,
         frequency=reminder.frequency,
-        times=json.loads(reminder.times),
+        times=times_data,
         days_of_week=json.loads(reminder.days_of_week) if reminder.days_of_week else None,
         start_date=reminder.start_date,
         end_date=reminder.end_date,
         is_active=reminder.is_active,
+        is_notification_enabled=reminder.is_notification_enabled,
         notes=reminder.notes,
         created_at=reminder.created_at,
         updated_at=reminder.updated_at,
@@ -349,19 +377,29 @@ async def toggle_reminder(
     """
     reminder = reminder_service.toggle_reminder(db, reminder_id, current_user.id)
     
+    times_data = json.loads(reminder.times)
+    # Handle backward compatibility
+    if times_data and isinstance(times_data[0], str):
+        times_data = [
+            {"time": t, "period": "morning", "dosage": "1"}
+            for t in times_data
+        ]
+    
     return ReminderResponse(
         id=reminder.id,
         user_id=reminder.user_id,
         medicine_id=reminder.medicine_id,
         medicine_name=reminder.medicine_name,
-        title=reminder.title,
         dosage=reminder.dosage,
+        unit=reminder.unit,
+        meal_timing=reminder.meal_timing,
         frequency=reminder.frequency,
-        times=json.loads(reminder.times),
+        times=times_data,
         days_of_week=json.loads(reminder.days_of_week) if reminder.days_of_week else None,
         start_date=reminder.start_date,
         end_date=reminder.end_date,
         is_active=reminder.is_active,
+        is_notification_enabled=reminder.is_notification_enabled,
         notes=reminder.notes,
         created_at=reminder.created_at,
         updated_at=reminder.updated_at,
@@ -371,44 +409,162 @@ async def toggle_reminder(
 
 # ===== Adherence Tracking Endpoints =====
 
-@router.post("/{reminder_id}/action", response_model=AdherenceLogResponse)
-async def log_adherence_action(
+@router.post("/{reminder_id}/toggle-taken", response_model=AdherenceLogResponse)
+async def toggle_medication_taken(
     reminder_id: int,
-    action: AdherenceAction,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Log user action on a reminder (taken/snoozed/skipped)
+    Toggle medication taken status for the most recent past medication time today
+    
+    Automatically finds the most recent medication time that has passed and toggles it.
+    If no medication time has passed yet today, returns 400 error.
     
     Args:
         reminder_id: Reminder ID
-        action_type: 'taken', 'snoozed', or 'skipped'
-        snooze_minutes: Required if action_type is 'snoozed' (5-60)
-        
-    Note:
-        scheduled_time is automatically set to current time
         
     Returns:
-        Created adherence log
+        Updated or created adherence log
     """
-    # Auto-generate scheduled_time as current time
-    scheduled_time = datetime.now()
+    from app.models.database import AdherenceLog, MedicationReminder
+    from sqlalchemy import and_
+    from datetime import timedelta, date
+    import json
     
-    log = adherence_service.log_action(
-        db, reminder_id, current_user.id, action, scheduled_time
-    )
+    # Get the reminder
+    reminder = db.query(MedicationReminder).filter(
+        and_(
+            MedicationReminder.id == reminder_id,
+            MedicationReminder.user_id == current_user.id
+        )
+    ).first()
     
-    return AdherenceLogResponse(
-        id=log.id,
-        reminder_id=log.reminder_id,
-        user_id=log.user_id,
-        scheduled_time=log.scheduled_time,
-        action_time=log.action_time,
-        action_type=log.action_type,
-        snooze_minutes=log.snooze_minutes,
-        created_at=log.created_at
-    )
+    if not reminder:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reminder not found"
+        )
+    
+    # Get current time and today's date
+    now = datetime.now()
+    today = now.date()
+    
+    # Check if reminder applies today
+    if reminder.start_date.date() > today or (reminder.end_date and reminder.end_date.date() < today):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reminder is not active today"
+        )
+    
+    # Check frequency
+    applies_today = False
+    if reminder.frequency == "daily":
+        applies_today = True
+    elif reminder.frequency in ["weekly", "specific_days"]:
+        days_of_week = json.loads(reminder.days_of_week) if reminder.days_of_week else []
+        if today.weekday() in days_of_week:
+            applies_today = True
+    elif reminder.frequency == "every_other_day":
+        days_diff = (today - reminder.start_date.date()).days
+        if days_diff % 2 == 0:
+            applies_today = True
+    
+    if not applies_today:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No medication scheduled for today"
+        )
+    
+    # Parse times from reminder
+    times_data = json.loads(reminder.times)
+    # times_data is list of dicts: [{"time": "07:00", "period": "morning", "dosage": "2"}, ...]
+    
+    # Find the most recent time that has passed
+    scheduled_time = None
+    current_time_str = now.strftime("%H:%M")
+    
+    for time_item in times_data:
+        time_str = time_item['time']
+        if time_str <= current_time_str:
+            # This time has passed
+            if scheduled_time is None or time_str > scheduled_time.strftime("%H:%M"):
+                # Parse to datetime
+                time_parts = time_str.split(":")
+                scheduled_time = datetime.combine(today, datetime.strptime(time_str, "%H:%M").time())
+    
+    if scheduled_time is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No medication time has passed yet today"
+        )
+    
+    # Check if log already exists for this scheduled time
+    existing_log = db.query(AdherenceLog).filter(
+        and_(
+            AdherenceLog.reminder_id == reminder_id,
+            AdherenceLog.user_id == current_user.id,
+            AdherenceLog.scheduled_time >= scheduled_time,
+            AdherenceLog.scheduled_time < scheduled_time + timedelta(minutes=1)
+        )
+    ).first()
+    
+    if existing_log:
+        # Toggle: if it was taken, mark as not taken (delete)
+        if existing_log.action_type == "taken":
+            db.delete(existing_log)
+            db.commit()
+            # Return response indicating not_taken
+            return AdherenceLogResponse(
+                id=0,
+                reminder_id=reminder_id,
+                user_id=current_user.id,
+                scheduled_time=scheduled_time,
+                action_time=None,
+                action_type="not_taken",
+                snooze_minutes=None,
+                created_at=now
+            )
+        else:
+            # If it was not_taken or other, mark as taken
+            existing_log.action_type = "taken"
+            existing_log.action_time = now
+            db.commit()
+            db.refresh(existing_log)
+            return AdherenceLogResponse(
+                id=existing_log.id,
+                reminder_id=existing_log.reminder_id,
+                user_id=existing_log.user_id,
+                scheduled_time=existing_log.scheduled_time,
+                action_time=existing_log.action_time,
+                action_type=existing_log.action_type,
+                snooze_minutes=existing_log.snooze_minutes,
+                created_at=existing_log.created_at
+            )
+    else:
+        # No existing log, create new one as taken
+        new_log = AdherenceLog(
+            reminder_id=reminder_id,
+            user_id=current_user.id,
+            scheduled_time=scheduled_time,
+            action_time=now,
+            action_type="taken",
+            snooze_minutes=None
+        )
+        db.add(new_log)
+        db.commit()
+        db.refresh(new_log)
+        
+        return AdherenceLogResponse(
+            id=new_log.id,
+            reminder_id=new_log.reminder_id,
+            user_id=new_log.user_id,
+            scheduled_time=new_log.scheduled_time,
+            action_time=new_log.action_time,
+            action_type=new_log.action_type,
+            snooze_minutes=new_log.snooze_minutes,
+            created_at=new_log.created_at
+        )
 
 
 @router.get("/{reminder_id}/adherence", response_model=list[AdherenceLogResponse])
@@ -447,75 +603,5 @@ async def get_adherence_logs(
     ]
 
 
-@router.get("/adherence/stats", response_model=AdherenceStats)
-async def get_adherence_stats(
-    year: int = Query(..., ge=2020, le=2100, description="Year"),
-    month: int = Query(..., ge=1, le=12, description="Month (1-12)"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get monthly adherence statistics
-    
-    Args:
-        year: Year (e.g., 2025)
-        month: Month (1-12)
-        
-    Returns:
-        Monthly statistics including adherence rate
-    """
-    stats = adherence_service.get_monthly_stats(db, current_user.id, year, month)
-    return stats
-
-
-@router.get("/adherence/chart", response_model=list[AdherenceChartData])
-async def get_adherence_chart(
-    year: int = Query(..., ge=2020, le=2100, description="Year"),
-    month: int = Query(..., ge=1, le=12, description="Month (1-12)"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get daily adherence data for chart visualization
-    
-    Args:
-        year: Year
-        month: Month (1-12)
-        
-    Returns:
-        Daily breakdown with taken/snoozed/skipped counts
-    """
-    chart_data = adherence_service.get_chart_data(db, current_user.id, year, month)
-    return chart_data
-
-
 # ===== AI Advice Endpoints =====
-
-@router.get("/{reminder_id}/advice", response_model=AIAdvice)
-async def get_reminder_advice(
-    reminder_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get AI-generated personalized advice based on adherence behavior
-    
-    Analyzes the last 30 days of adherence data (taken/snoozed/skipped)
-    and provides personalized recommendations
-    
-    Args:
-        reminder_id: Reminder ID
-        
-    Returns:
-        Personalized advice based on adherence patterns
-    """
-    from app.services.ai_advice_service import ai_advice_service
-    
-    # Generate advice based on adherence behavior
-    advice = await ai_advice_service.generate_advice_for_reminder(
-        db=db,
-        reminder_id=reminder_id,
-        user_id=current_user.id
-    )
-    
-    return advice
+# REMOVED - AI advice endpoint removed per user request

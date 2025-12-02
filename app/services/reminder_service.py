@@ -60,30 +60,34 @@ class ReminderService:
             )
         
         # Validate frequency-specific fields
-        if reminder_data.frequency == 'weekly' and not reminder_data.days_of_week:
+        if reminder_data.frequency in ['weekly', 'specific_days'] and not reminder_data.days_of_week:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="days_of_week required for weekly frequency"
+                detail="days_of_week required for weekly or specific_days frequency"
             )
         
         # Auto-convert weekly with all 7 days to daily
         frequency = reminder_data.frequency
         days_of_week = reminder_data.days_of_week
         
-        if frequency == "weekly" and days_of_week and len(days_of_week) == 7:
+        if frequency in ["weekly", "specific_days"] and days_of_week and len(days_of_week) == 7:
             frequency = "daily"
             days_of_week = None
-            logger.info(f"Auto-converted weekly (all 7 days) to daily for user {user_id}")
+            logger.info(f"Auto-converted weekly/specific_days (all 7 days) to daily for user {user_id}")
+        
+        # Serialize times as TimeSchedule objects
+        times_json = json.dumps([t.model_dump() for t in reminder_data.times])
         
         # Create reminder
         reminder = MedicationReminder(
             user_id=user_id,
             medicine_id=reminder_data.medicine_id,
             medicine_name=reminder_data.medicine_name,
-            title=reminder_data.title,
             dosage=reminder_data.dosage,
+            unit=reminder_data.unit,
+            meal_timing=reminder_data.meal_timing,
             frequency=frequency,
-            times=json.dumps(reminder_data.times),
+            times=times_json,
             days_of_week=json.dumps(days_of_week) if days_of_week else None,
             start_date=reminder_data.start_date,
             end_date=reminder_data.end_date,
@@ -212,7 +216,8 @@ class ReminderService:
         
         for field, value in update_dict.items():
             if field == 'times' and value is not None:
-                setattr(reminder, field, json.dumps(value))
+                # Serialize TimeSchedule objects
+                setattr(reminder, field, json.dumps([t.model_dump() for t in value]))
             elif field == 'days_of_week' and value is not None:
                 setattr(reminder, field, json.dumps(value))
             else:
@@ -324,14 +329,23 @@ class ReminderService:
             for reminder in reminders:
                 if reminder.start_date.date() <= current_date <= (reminder.end_date.date() if reminder.end_date else date.max):
                     # Check if reminder applies on this day
+                    applies = False
                     if reminder.frequency == "daily":
-                        reminder_count += len(json.loads(reminder.times))
-                        times_set.update(json.loads(reminder.times))
-                    elif reminder.frequency == "weekly":
+                        applies = True
+                    elif reminder.frequency in ["weekly", "specific_days"]:
                         days_of_week = json.loads(reminder.days_of_week) if reminder.days_of_week else []
                         if current_date.weekday() in days_of_week:
-                            reminder_count += len(json.loads(reminder.times))
-                            times_set.update(json.loads(reminder.times))
+                            applies = True
+                    elif reminder.frequency == "every_other_day":
+                        days_diff = (current_date - reminder.start_date.date()).days
+                        if days_diff % 2 == 0:
+                            applies = True
+                    
+                    if applies:
+                        times_data = json.loads(reminder.times)
+                        # Times are TimeSchedule objects: [{"time": "07:00", "period": "morning", "dosage": "2"}, ...]
+                        reminder_count += len(times_data)
+                        times_set.update([t['time'] for t in times_data])
             
             calendar_days.append({
                 "date": current_date.isoformat(),
@@ -389,16 +403,35 @@ class ReminderService:
             applies = False
             if reminder.frequency == "daily":
                 applies = True
-            elif reminder.frequency == "weekly":
+            elif reminder.frequency in ["weekly", "specific_days"]:
                 days_of_week = json.loads(reminder.days_of_week) if reminder.days_of_week else []
                 if target_date.weekday() in days_of_week:
+                    applies = True
+            elif reminder.frequency == "every_other_day":
+                days_diff = (target_date - reminder.start_date.date()).days
+                if days_diff % 2 == 0:
                     applies = True
             
             if not applies:
                 continue
             
-            # For each time slot
-            for time_str in times:
+            # Parse times - they are TimeSchedule objects now
+            times_data = json.loads(times)
+            # times_data is list of dicts: [{"time": "07:00", "period": "morning", "dosage": "2"}, ...]
+            
+            for time_item in times_data:
+                time_str = time_item['time']
+                period = time_item.get('period')
+                dosage_amount = time_item.get('dosage')
+                
+                # Build dosage info
+                if dosage_amount and reminder.unit:
+                    dosage_info = f"{dosage_amount} {reminder.unit}"
+                elif dosage_amount:
+                    dosage_info = dosage_amount
+                else:
+                    dosage_info = reminder.dosage
+                
                 # Check adherence status
                 scheduled_datetime = datetime.combine(target_date, datetime.strptime(time_str, "%H:%M").time())
                 
@@ -420,14 +453,24 @@ class ReminderService:
                     status = "not_taken"
                     is_taken = False
                 
-                schedules.append({
+                schedule_item = {
                     "reminder_id": reminder.id,
                     "medicine_name": reminder.medicine_name,
                     "time": time_str,
-                    "dosage": reminder.dosage,
+                    "dosage": dosage_info,
                     "status": status,
                     "is_taken": is_taken
-                })
+                }
+                
+                # Add optional fields
+                if reminder.unit:
+                    schedule_item["unit"] = reminder.unit
+                if reminder.meal_timing:
+                    schedule_item["meal_timing"] = reminder.meal_timing
+                if period:
+                    schedule_item["period"] = period
+                
+                schedules.append(schedule_item)
         
         # Sort by time
         schedules.sort(key=lambda x: x["time"])

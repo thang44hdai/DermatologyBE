@@ -251,9 +251,10 @@ class MedicationReminder(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     medicine_id = Column(Integer, ForeignKey("medicines.id"), nullable=True)  # Optional: for DB medicines
     medicine_name = Column(String(255), nullable=False)  # Required: custom or from DB
-    title = Column(String(255), nullable=False)
     dosage = Column(String(100), nullable=True)
-    frequency = Column(String(50), nullable=False)  # 'daily', 'weekly', 'custom'
+    unit = Column(String(50), nullable=True)  # Viên, Xit, Ong, ml, Mieng, Lieu, Goi, Giot
+    meal_timing = Column(String(20), nullable=True)  # before_meal, after_meal
+    frequency = Column(String(50), nullable=False)  # 'daily', 'weekly', 'every_other_day', 'specific_days', 'custom'
     times = Column(Text, nullable=False)  # JSON array of times: ["08:00", "14:00", "20:00"]
     days_of_week = Column(Text, nullable=True)  # JSON array for weekly: [0,1,2,3,4,5,6]
     start_date = Column(DateTime, nullable=False)

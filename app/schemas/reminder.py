@@ -5,19 +5,44 @@ Pydantic models for medication reminder API requests and responses.
 """
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime, date
+
+
+class TimeSchedule(BaseModel):
+    """Detailed time schedule with period and dosage"""
+    time: str = Field(..., description="Time in HH:MM format")
+    period: str = Field(..., description="morning, noon, afternoon, evening")
+    dosage: str = Field(..., description="Number of units (e.g., '2', '1.5')")
+    
+    @field_validator('time')
+    @classmethod
+    def validate_time(cls, v: str) -> str:
+        import re
+        time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
+        if not time_pattern.match(v):
+            raise ValueError(f'Invalid time format: {v}. Use HH:MM format (00:00-23:59)')
+        return v
+    
+    @field_validator('period')
+    @classmethod
+    def validate_period(cls, v: str) -> str:
+        valid = ['morning', 'noon', 'afternoon', 'evening']
+        if v not in valid:
+            raise ValueError(f'Period must be one of: {", ".join(valid)}')
+        return v
 
 
 class ReminderCreate(BaseModel):
     """Schema for creating a new medication reminder"""
     medicine_id: Optional[int] = Field(None, description="Medicine ID from database (optional)")
     medicine_name: str = Field(..., min_length=1, max_length=255, description="Medicine name (required)")
-    title: str = Field(..., min_length=1, max_length=255, description="Reminder title")
     dosage: Optional[str] = Field(None, max_length=100, description="Dosage (e.g., 500mg, 2 viên)")
-    frequency: str = Field(..., description="Frequency: daily, weekly, or custom")
-    times: List[str] = Field(..., min_length=1, description="Array of times in HH:MM format")
-    days_of_week: Optional[List[int]] = Field(None, description="For weekly: 0-6 (Monday-Sunday)")
+    unit: Optional[str] = Field(None, max_length=50, description="Unit: Viên, Xit, Ong, ml, Mieng, Lieu, Goi, Giot")
+    meal_timing: Optional[str] = Field(None, description="Meal timing: before_meal or after_meal")
+    frequency: str = Field(..., description="Frequency: daily, weekly, every_other_day, specific_days, or custom")
+    times: List[TimeSchedule] = Field(..., min_length=1, description="Time schedules with period and dosage")
+    days_of_week: Optional[List[int]] = Field(None, description="For weekly/specific_days: 0-6 (Monday-Sunday)")
     start_date: date = Field(..., description="Start date for reminder")
     end_date: Optional[date] = Field(None, description="Optional end date")
     is_notification_enabled: bool = Field(default=True, description="Enable push notifications")
@@ -30,22 +55,30 @@ class ReminderCreate(BaseModel):
             raise ValueError('Medicine name cannot be empty')
         return v.strip()
     
+    @field_validator('unit')
+    @classmethod
+    def validate_unit(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            valid = ['Viên', 'Xit', 'Ong', 'ml', 'Mieng', 'Lieu', 'Goi', 'Giot']
+            if v not in valid:
+                raise ValueError(f'Unit must be one of: {", ".join(valid)}')
+        return v
+    
+    @field_validator('meal_timing')
+    @classmethod
+    def validate_meal_timing(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            valid = ['before_meal', 'after_meal']
+            if v not in valid:
+                raise ValueError(f'Meal timing must be one of: {", ".join(valid)}')
+        return v
+    
     @field_validator('frequency')
     @classmethod
     def validate_frequency(cls, v: str) -> str:
-        valid = ['daily', 'weekly', 'custom']
+        valid = ['daily', 'weekly', 'every_other_day', 'specific_days', 'custom']
         if v not in valid:
             raise ValueError(f'Frequency must be one of: {", ".join(valid)}')
-        return v
-    
-    @field_validator('times')
-    @classmethod
-    def validate_times(cls, v: List[str]) -> List[str]:
-        import re
-        time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
-        for time_str in v:
-            if not time_pattern.match(time_str):
-                raise ValueError(f'Invalid time format: {time_str}. Use HH:MM format (00:00-23:59)')
         return v
     
     @field_validator('days_of_week')
@@ -60,24 +93,32 @@ class ReminderCreate(BaseModel):
 
 class ReminderUpdate(BaseModel):
     """Schema for updating a medication reminder"""
-    title: Optional[str] = Field(None, min_length=1, max_length=255)
     dosage: Optional[str] = Field(None, max_length=100)
-    times: Optional[List[str]] = Field(None, min_length=1)
+    unit: Optional[str] = Field(None, max_length=50)
+    meal_timing: Optional[str] = Field(None)
+    times: Optional[List[TimeSchedule]] = Field(None, min_length=1)
     days_of_week: Optional[List[int]] = Field(None)
     end_date: Optional[date] = None
     is_active: Optional[bool] = None
     is_notification_enabled: Optional[bool] = None
     notes: Optional[str] = None
     
-    @field_validator('times')
+    @field_validator('unit')
     @classmethod
-    def validate_times(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+    def validate_unit(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
-            import re
-            time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
-            for time_str in v:
-                if not time_pattern.match(time_str):
-                    raise ValueError(f'Invalid time format: {time_str}')
+            valid = ['Viên', 'Xit', 'Ong', 'ml', 'Mieng', 'Lieu', 'Goi', 'Giot']
+            if v not in valid:
+                raise ValueError(f'Unit must be one of: {", ".join(valid)}')
+        return v
+    
+    @field_validator('meal_timing')
+    @classmethod
+    def validate_meal_timing(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            valid = ['before_meal', 'after_meal']
+            if v not in valid:
+                raise ValueError(f'Meal timing must be one of: {", ".join(valid)}')
         return v
     
     @field_validator('days_of_week')
@@ -96,10 +137,11 @@ class ReminderResponse(BaseModel):
     user_id: int
     medicine_id: Optional[int]
     medicine_name: str
-    title: str
     dosage: Optional[str]
+    unit: Optional[str]
+    meal_timing: Optional[str]
     frequency: str
-    times: List[str]
+    times: List[dict]  # Dict representation of TimeSchedule
     days_of_week: Optional[List[int]]
     start_date: date
     end_date: Optional[date]
@@ -123,25 +165,9 @@ class ReminderListResponse(BaseModel):
 
 
 class AdherenceAction(BaseModel):
-    """Schema for user action on a reminder"""
-    action_type: str = Field(..., description="Action: taken, snoozed, or skipped")
-    snooze_minutes: Optional[int] = Field(None, ge=5, le=60, description="Minutes to snooze (5-60)")
-    
-    @field_validator('action_type')
-    @classmethod
-    def validate_action(cls, v: str) -> str:
-        valid = ['taken', 'snoozed', 'skipped']
-        if v not in valid:
-            raise ValueError(f'Action type must be one of: {", ".join(valid)}')
-        return v
-    
-    @field_validator('snooze_minutes')
-    @classmethod
-    def validate_snooze(cls, v: Optional[int], info) -> Optional[int]:
-        data = info.data
-        if data.get('action_type') == 'snoozed' and not v:
-            raise ValueError('snooze_minutes required for snoozed action')
-        return v
+    """Schema for toggling medication taken status"""
+    # No fields needed - it's just a toggle
+    pass
 
 
 class AdherenceLogResponse(BaseModel):
