@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import health, prediction, users, auth, pharmacy, medicines, disease, brand, chat, reminders, admin
+from app.api.v1.endpoints import health, prediction, users, auth, pharmacy, medicines, disease, brand, chat, reminders, admin, categories
 
 api_router = APIRouter()
 
@@ -14,4 +14,5 @@ api_router.include_router(admin.router, prefix="/admin", tags=["Admin Dashboard"
 api_router.include_router(disease.router, prefix="/diseases", tags=["Disease Management (Admin)"])
 api_router.include_router(pharmacy.router, prefix="/pharmacies", tags=["Pharmacy Management (Admin)"])
 api_router.include_router(medicines.router, prefix="/medicines", tags=["Medicine Management (Admin)"])
+api_router.include_router(categories.router, prefix="/categories", tags=["Category Management (Admin)"])
 api_router.include_router(brand.router, prefix="/brands", tags=["Brand Management (Admin)"])

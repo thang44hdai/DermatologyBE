@@ -100,6 +100,22 @@ class Brand(Base):
 
     # Relationships
     medicines = relationship("Medicines", back_populates="brand")
+
+
+class Category(Base):
+    __tablename__ = "categories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True, index=True)
+    image_url = Column(String(500), nullable=True)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    medicines = relationship("Medicines", back_populates="category")
+
+
 class Medicines(Base):
     __tablename__ = "medicines"
 
@@ -113,11 +129,13 @@ class Medicines(Base):
     suitable_for = Column(String(10), nullable=True)
     price = Column(Float, nullable=True)
     brand_id = Column(Integer, ForeignKey("brands.id"), nullable=True)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     image_url = Column(Text, nullable=True)  # JSON array of image URLs
     created_at = Column(DateTime, server_default=func.now())
 
     # Relationships
     brand = relationship("Brand", back_populates="medicines")
+    category = relationship("Category", back_populates="medicines")
     disease_links = relationship("MedicineDiseaseLink", back_populates="medicine", cascade="all, delete-orphan")
     diseases = relationship("Disease", secondary="medicine_disease_link", back_populates="medicines", viewonly=True)
     medicine_pharmacies = relationship("MedicinePharmacyLink", back_populates="medicine")
