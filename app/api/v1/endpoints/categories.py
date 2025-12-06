@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from pydantic import BaseModel, Field
 
 from app.core.dependencies import get_db
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
@@ -249,4 +250,124 @@ def get_medicines_by_category(
         "total": result["total"],
         "skip": skip,
         "limit": limit
+    }
+
+
+# ===== Bulk Operations =====
+
+class AddMedicinesToCategory(BaseModel):
+    medicine_ids: List[int] = Field(..., min_items=1, description="List of medicine IDs to add")
+
+
+@router.post("/{category_id}/add-medicines")
+async def add_medicines_to_category(
+    category_id: int,
+    data: AddMedicinesToCategory,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    """
+    Add multiple medicines to a category (Admin only)
+    
+    Args:
+        category_id: Category ID
+        medicine_ids: List of medicine IDs to add
+        
+    Returns:
+        Success message with count of added medicines
+    """
+    # Validate category exists
+    category = category_service.get_category(db, category_id)
+    
+    # Import medicine service
+    from app.services.medicine_service import medicine_service
+    
+    # Update medicines
+    added_count = 0
+    already_in_category = []
+    not_found_ids = []
+    
+    for medicine_id in data.medicine_ids:
+        try:
+            medicine = medicine_service.get_medicine(db, medicine_id)
+            
+            # Check if already in this category
+            if medicine.category_id == category_id:
+                already_in_category.append(medicine_id)
+            else:
+                medicine.category_id = category_id
+                added_count += 1
+        except HTTPException:
+            not_found_ids.append(medicine_id)
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Added {added_count} medicines to category '{category.name}'",
+        "category_id": category_id,
+        "category_name": category.name,
+        "added_count": added_count,
+        "already_in_category": already_in_category if already_in_category else None,
+        "not_found_ids": not_found_ids if not_found_ids else None
+    }
+
+
+class RemoveMedicinesFromCategory(BaseModel):
+    medicine_ids: List[int] = Field(..., min_items=1, description="List of medicine IDs to remove")
+
+
+@router.post("/{category_id}/remove-medicines")
+async def remove_medicines_from_category(
+    category_id: int,
+    data: RemoveMedicinesFromCategory,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    """
+    Remove multiple medicines from a category (Admin only)
+    
+    Sets category_id to NULL for specified medicines
+    
+    Args:
+        category_id: Category ID
+        medicine_ids: List of medicine IDs to remove
+        
+    Returns:
+        Success message with count of removed medicines
+    """
+    # Validate category exists
+    category = category_service.get_category(db, category_id)
+    
+    # Import medicine service
+    from app.services.medicine_service import medicine_service
+    
+    # Update medicines
+    removed_count = 0
+    not_in_category = []
+    not_found_ids = []
+    
+    for medicine_id in data.medicine_ids:
+        try:
+            medicine = medicine_service.get_medicine(db, medicine_id)
+            
+            # Check if medicine is in this category
+            if medicine.category_id != category_id:
+                not_in_category.append(medicine_id)
+            else:
+                medicine.category_id = None
+                removed_count += 1
+        except HTTPException:
+            not_found_ids.append(medicine_id)
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Removed {removed_count} medicines from category '{category.name}'",
+        "category_id": category_id,
+        "category_name": category.name,
+        "removed_count": removed_count,
+        "not_in_category": not_in_category if not_in_category else None,
+        "not_found_ids": not_found_ids if not_found_ids else None
     }

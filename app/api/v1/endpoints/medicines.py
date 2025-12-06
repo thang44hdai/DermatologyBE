@@ -36,6 +36,7 @@ async def create_medicine(
     side_effects: Optional[str] = Form(None, description="Side effects"),
     suitable_for: Optional[str] = Form(None, description="Suitable for (adults/children)"),
     price: Optional[float] = Form(None, description="Base price"),
+    category_id: Optional[int] = Form(None, description="Category ID"),
     images: List[UploadFile] = File(None, description="Medicine image files (multiple)"),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_admin)
@@ -86,6 +87,12 @@ async def create_medicine(
             )
             image_urls.append(image_url)
     
+    
+    # Validate category_id if provided
+    if category_id:
+        from app.services.category_service import category_service
+        category_service.get_category(db, category_id)  # Throws 404 if not found
+    
     medicine_data = MedicineCreate(
         name=name,
         description=description,
@@ -96,6 +103,7 @@ async def create_medicine(
         side_effects=side_effects,
         suitable_for=suitable_for,
         price=price,
+        category_id=category_id,
         images=image_urls if image_urls else None
     )
     
@@ -175,6 +183,7 @@ async def update_medicine(
     side_effects: Optional[str] = Form(None, description="Side effects"),
     suitable_for: Optional[str] = Form(None, description="Suitable for"),
     price: Optional[float] = Form(None, description="Base price"),
+    category_id: Optional[int] = Form(None, description="Category ID (use -1 to remove category)"),
     images: List[UploadFile] = File(None, description="Medicine image files (multiple) - will replace existing images"),
     keep_existing_images: bool = Form(True, description="Keep existing images and append new ones"),
     db: Session = Depends(get_db),
@@ -249,6 +258,14 @@ async def update_medicine(
                 await file_upload_service.delete_image(old_image)
             image_urls = new_image_urls
     
+    # Validate category_id if provided
+    if category_id is not None:
+        if category_id == -1:
+            category_id = None  # Remove category
+        elif category_id > 0:
+            from app.services.category_service import category_service
+            category_service.get_category(db, category_id)  # Validate category exists
+    
     # Build update data
     update_data = {}
     if name is not None:
@@ -269,6 +286,8 @@ async def update_medicine(
         update_data["suitable_for"] = suitable_for
     if price is not None:
         update_data["price"] = price
+    if category_id is not None:
+        update_data["category_id"] = category_id
     
     if not update_data and image_urls is None:
         raise HTTPException(
@@ -279,6 +298,66 @@ async def update_medicine(
     medicine_update = MedicineUpdate(**update_data)
     medicine = medicine_service.update_medicine(db, medicine_id, medicine_update, image_urls=image_urls)
     return MedicineResponse.from_orm_model(medicine)
+
+
+# ===== Medicine-Category Assignment =====
+
+@router.put("/{medicine_id}/category/{category_id}", response_model=MedicineResponse)
+async def assign_medicine_to_category(
+    medicine_id: int,
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    """
+    Assign a medicine to a category (Admin only)
+    
+    Simpler alternative to update endpoint for category-only updates
+    
+    Args:
+        medicine_id: Medicine ID
+        category_id: Category ID to assign
+        
+    Returns:
+        Updated medicine
+    """
+    # Validate category exists
+    from app.services.category_service import category_service
+    category = category_service.get_category(db, category_id)
+    
+    # Get and update medicine
+    medicine = medicine_service.get_medicine(db, medicine_id)
+    medicine.category_id = category_id
+    db.commit()
+    db.refresh(medicine)
+    
+    return MedicineResponse.from_orm_model(medicine)
+
+
+@router.delete("/{medicine_id}/category")
+async def remove_category_from_medicine(
+    medicine_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    """
+    Remove category from a medicine (Admin only)
+    
+    Args:
+        medicine_id: Medicine ID
+        
+    Returns:
+        Success message
+    """
+    medicine = medicine_service.get_medicine(db, medicine_id)
+    medicine.category_id = None
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "Category removed from medicine",
+        "medicine_id": medicine_id
+    }
 
 
 @router.delete("/{medicine_id}")

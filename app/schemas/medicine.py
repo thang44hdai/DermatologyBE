@@ -30,6 +30,7 @@ class MedicineBase(BaseModel):
     price: Optional[float] = Field(None, ge=0, description="Base price")
     images: Optional[List[str]] = Field(None, description="List of medicine image URLs")
     brand_id: Optional[int] = Field(None, description="Brand ID")
+    category_id: Optional[int] = Field(None, description="Category ID")
     disease_ids: List[int] = Field(..., min_items=1, description="List of related disease IDs")
 
 
@@ -50,6 +51,7 @@ class MedicineUpdate(BaseModel):
     price: Optional[float] = Field(None, ge=0)
     images: Optional[List[str]] = None
     brand_id: Optional[int] = None
+    category_id: Optional[int] = None
     disease_ids: Optional[List[int]] = Field(None, min_items=1, description="List of related disease IDs")
 
 
@@ -66,6 +68,8 @@ class MedicineResponse(BaseModel):
     price: Optional[float]
     images: Optional[List[str]]
     brand: Optional[BrandInfo]
+    category_id: Optional[int]
+    category: Optional[dict] = None
     disease_ids: List[int]
     created_at: datetime
     
@@ -90,6 +94,15 @@ class MedicineResponse(BaseModel):
         if medicine.brand:
             brand = BrandInfo.from_orm(medicine.brand)
         
+        # Get category info if exists
+        category_data = None
+        if medicine.category:
+            category_data = {
+                "id": medicine.category.id,
+                "name": medicine.category.name,
+                "image_url": medicine.category.image_url
+            }
+        
         return cls(
             id=medicine.id,
             name=medicine.name,
@@ -102,6 +115,8 @@ class MedicineResponse(BaseModel):
             price=medicine.price,
             images=images,
             brand=brand,
+            category_id=medicine.category_id,
+            category=category_data,
             disease_ids=disease_ids,
             created_at=medicine.created_at
         )
