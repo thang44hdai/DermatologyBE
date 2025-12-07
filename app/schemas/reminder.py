@@ -239,8 +239,11 @@ class ReminderScheduleItem(BaseModel):
     medicine_name: str
     time: str = Field(..., description="Time in HH:MM format")
     dosage: Optional[str]
-    status: str = Field(..., description="Status: not_taken, taken, snoozed, or skipped")
-    is_taken: bool = Field(..., description="Already logged as taken (deprecated, use status)")
+    is_taken: bool = Field(..., description="Whether medicine has been taken")
+    unit: Optional[str] = Field(None, description="Unit (Viên, Xịt, etc.)")
+    meal_timing: Optional[str] = Field(None, description="before_meal or after_meal")
+    note: Optional[str] = Field(None, description="Additional notes")
+    period: Optional[str] = Field(None, description="morning, afternoon, evening, night")
 
 
 class DailyScheduleDetail(BaseModel):

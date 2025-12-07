@@ -440,7 +440,7 @@ class ReminderService:
                 
                 # Build dosage info
                 if dosage_amount and reminder.unit:
-                    dosage_info = f"{dosage_amount} {reminder.unit}"
+                    dosage_info = f"{dosage_amount}"
                 elif dosage_amount:
                     dosage_info = dosage_amount
                 else:
@@ -459,12 +459,10 @@ class ReminderService:
                     )
                 ).first()
                 
-                # Determine status
+                # Determine is_taken status
                 if log:
-                    status = log.action_type  # "taken", "snoozed", or "skipped"
                     is_taken = log.action_type == "taken"
                 else:
-                    status = "not_taken"
                     is_taken = False
                 
                 schedule_item = {
@@ -472,15 +470,13 @@ class ReminderService:
                     "medicine_name": reminder.medicine_name,
                     "time": time_str,
                     "dosage": dosage_info,
-                    "status": status,
-                    "is_taken": is_taken
+                    "is_taken": is_taken,
+                    "unit": reminder.unit if reminder.unit else "",
+                    "meal_timing": reminder.meal_timing if reminder.meal_timing else "",
+                    "note": reminder.notes if reminder.notes else ""
                 }
                 
-                # Add optional fields
-                if reminder.unit:
-                    schedule_item["unit"] = reminder.unit
-                if reminder.meal_timing:
-                    schedule_item["meal_timing"] = reminder.meal_timing
+                # Add optional period field
                 if period:
                     schedule_item["period"] = period
                 
