@@ -415,14 +415,28 @@ class ReminderService:
             if not applies:
                 continue
             
-            # Parse times - they are TimeSchedule objects now
-            times_data = json.loads(times)
+            # Parse times - handle both string and already-parsed object
+            if isinstance(times, str):
+                times_data = json.loads(times)
+            else:
+                times_data = times  # Already a list/dict
             # times_data is list of dicts: [{"time": "07:00", "period": "morning", "dosage": "2"}, ...]
+            # OR old format: ["07:00", "12:00", "18:00"]
             
             for time_item in times_data:
-                time_str = time_item['time']
-                period = time_item.get('period')
-                dosage_amount = time_item.get('dosage')
+                # Handle both old format (string) and new format (dict)
+                if isinstance(time_item, str):
+                    # Old format: simple time string
+                    time_str = time_item
+                    period = None
+                    dosage_amount = None
+                elif isinstance(time_item, dict):
+                    # New format: TimeSchedule object
+                    time_str = time_item['time']
+                    period = time_item.get('period')
+                    dosage_amount = time_item.get('dosage')
+                else:
+                    continue  # Skip invalid format
                 
                 # Build dosage info
                 if dosage_amount and reminder.unit:
