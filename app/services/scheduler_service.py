@@ -154,10 +154,13 @@ class SchedulerService:
                 return
             
             # Prepare notification data
+
+            #Đến giờ uống thuốc rồi! Hãy dùng đung giờ để đảm bảo sức khoẻ nhé!
+            # {reminder.dosage} {reminder.dosage_unit} {reminder.medicine_name}
             title = "💊 Nhắc nhở uống thuốc"
-            body = f"{reminder.title} - {reminder.medicine_name}"
+            body = f"Đến giờ uống thuốc rồi! Hãy dùng đúng giờ để đảm bảo sức khoẻ nhé!"
             if reminder.dosage:
-                body += f" ({reminder.dosage})"
+                body += f" ({reminder.dosage} {reminder.dosage_unit}) {reminder.medicine_name}"
             
             # Send Firebase notification
             success = await notification_service.send_reminder_notification(

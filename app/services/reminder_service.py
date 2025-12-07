@@ -100,7 +100,7 @@ class ReminderService:
         db.commit()
         db.refresh(reminder)
         
-        logger.info(f"Created reminder {reminder.id} for user {user_id}: {reminder.title}")
+        logger.info(f"Created reminder {reminder.id} for user {user_id}: {reminder.medicine_name}")
         return reminder
     
     @staticmethod

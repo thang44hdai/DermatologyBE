@@ -59,7 +59,7 @@ class ReminderCreate(BaseModel):
     @classmethod
     def validate_unit(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
-            valid = ['Viên', 'Xit', 'Ong', 'ml', 'Mieng', 'Lieu', 'Goi', 'Giot']
+            valid = ['Viên', 'Xịt', 'Ống', 'ml', 'Miếng', 'Liều', 'Gói', 'Giọt']
             if v not in valid:
                 raise ValueError(f'Unit must be one of: {", ".join(valid)}')
         return v
