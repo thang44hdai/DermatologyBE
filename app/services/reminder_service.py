@@ -343,9 +343,16 @@ class ReminderService:
                     
                     if applies:
                         times_data = json.loads(reminder.times)
-                        # Times are TimeSchedule objects: [{"time": "07:00", "period": "morning", "dosage": "2"}, ...]
-                        reminder_count += len(times_data)
-                        times_set.update([t['time'] for t in times_data])
+                        
+                        # Handle backward compatibility
+                        if times_data and isinstance(times_data[0], str):
+                            # Old format: ["07:00", "12:00"]
+                            reminder_count += len(times_data)
+                            times_set.update(times_data)
+                        else:
+                            # New format: [{"time": "07:00", "period": "morning", "dosage": "2"}, ...]
+                            reminder_count += len(times_data)
+                            times_set.update([t['time'] for t in times_data])
             
             calendar_days.append({
                 "date": current_date.isoformat(),
@@ -380,18 +387,17 @@ class ReminderService:
         from app.models.database import AdherenceLog
         from datetime import datetime, timedelta
         
-        # Get all active reminders that apply on this date
-        reminders = db.query(MedicationReminder).filter(
+        # Get all active reminders
+        all_reminders = db.query(MedicationReminder).filter(
             and_(
                 MedicationReminder.user_id == user_id,
-                MedicationReminder.is_active == True,
-                MedicationReminder.start_date <= datetime.combine(target_date, datetime.min.time()),
-                or_(
-                    MedicationReminder.end_date == None,
-                    MedicationReminder.end_date >= datetime.combine(target_date, datetime.max.time())
-                )
+                MedicationReminder.is_active == True
             )
         ).all()
+        
+        # Filter by date range using .date() comparison (consistent with calendar overview)
+        reminders = [r for r in all_reminders 
+                     if r.start_date.date() <= target_date <= (r.end_date.date() if r.end_date else date.max)]
         
         # Build schedule items
         schedules = []
