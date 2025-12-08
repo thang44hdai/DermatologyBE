@@ -412,17 +412,20 @@ async def toggle_reminder(
 @router.post("/{reminder_id}/toggle-taken", response_model=AdherenceLogResponse)
 async def toggle_medication_taken(
     reminder_id: int,
+    scheduled_time: str = Query(..., description="Time to toggle (HH:MM format, e.g., '07:00', '12:30')"),
+    target_date: str = Query(..., description="Target date (YYYY-MM-DD format, e.g., '2025-12-07')"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Toggle medication taken status for the most recent past medication time today
+    Toggle medication taken status for a specific time on a specific date
     
-    Automatically finds the most recent medication time that has passed and toggles it.
-    If no medication time has passed yet today, returns 400 error.
+    Both parameters are REQUIRED. No auto-detection.
     
     Args:
         reminder_id: Reminder ID
+        scheduled_time: Time in HH:MM format (e.g., "07:00", "12:30")
+        target_date: Target date in YYYY-MM-DD format (e.g., "2025-12-07")
         
     Returns:
         Updated or created adherence log
@@ -446,15 +449,29 @@ async def toggle_medication_taken(
             detail="Reminder not found"
         )
     
-    # Get current time and today's date
+    # Get current time and parse target_date
     now = datetime.now()
-    today = now.date()
+    
+    try:
+        today = datetime.strptime(target_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid date format. Use YYYY-MM-DD (e.g., '2025-12-07')"
+        )
+    
+    # Check if date is not in the future
+    if today > now.date():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot toggle future date"
+        )
     
     # Check if reminder applies today
     if reminder.start_date.date() > today or (reminder.end_date and reminder.end_date.date() < today):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Reminder is not active today"
+            detail=f"Reminder is not active on {today.isoformat()}"
         )
     
     # Check frequency
@@ -473,39 +490,53 @@ async def toggle_medication_taken(
     if not applies_today:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No medication scheduled for today"
+            detail=f"No medication scheduled for {today.isoformat()}"
         )
     
     # Parse times from reminder
     times_data = json.loads(reminder.times)
-    # times_data is list of dicts: [{"time": "07:00", "period": "morning", "dosage": "2"}, ...]
     
-    # Find the most recent time that has passed
-    scheduled_time = None
-    current_time_str = now.strftime("%H:%M")
-    
-    for time_item in times_data:
-        time_str = time_item['time']
-        if time_str <= current_time_str:
-            # This time has passed
-            if scheduled_time is None or time_str > scheduled_time.strftime("%H:%M"):
-                # Parse to datetime
-                time_parts = time_str.split(":")
-                scheduled_time = datetime.combine(today, datetime.strptime(time_str, "%H:%M").time())
-    
-    if scheduled_time is None:
+    # Validate scheduled_time format
+    import re
+    if not re.match(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$', scheduled_time):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No medication time has passed yet today"
+            detail="Invalid time format. Use HH:MM (e.g., '07:00', '14:30')"
         )
+    
+    # Check if this time exists in reminder's schedule
+    time_exists = False
+    for time_item in times_data:
+        if time_item['time'] == scheduled_time:
+            time_exists = True
+            break
+    
+    if not time_exists:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Time {scheduled_time} is not scheduled for this reminder"
+        )
+    
+    # Check if this time is not in the future (only if target_date is today)
+    if today == now.date():
+        current_time_str = now.strftime("%H:%M")
+        if scheduled_time > current_time_str:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot toggle future medication time {scheduled_time}"
+            )
+    
+    # Parse to datetime
+    scheduled_datetime = datetime.combine(today, datetime.strptime(scheduled_time, "%H:%M").time())
+
     
     # Check if log already exists for this scheduled time
     existing_log = db.query(AdherenceLog).filter(
         and_(
             AdherenceLog.reminder_id == reminder_id,
             AdherenceLog.user_id == current_user.id,
-            AdherenceLog.scheduled_time >= scheduled_time,
-            AdherenceLog.scheduled_time < scheduled_time + timedelta(minutes=1)
+            AdherenceLog.scheduled_time >= scheduled_datetime,
+            AdherenceLog.scheduled_time < scheduled_datetime + timedelta(minutes=1)
         )
     ).first()
     
@@ -519,7 +550,7 @@ async def toggle_medication_taken(
                 id=0,
                 reminder_id=reminder_id,
                 user_id=current_user.id,
-                scheduled_time=scheduled_time,
+                scheduled_time=scheduled_datetime,
                 action_time=None,
                 action_type="not_taken",
                 snooze_minutes=None,
@@ -546,7 +577,7 @@ async def toggle_medication_taken(
         new_log = AdherenceLog(
             reminder_id=reminder_id,
             user_id=current_user.id,
-            scheduled_time=scheduled_time,
+            scheduled_time=scheduled_datetime,
             action_time=now,
             action_type="taken",
             snooze_minutes=None
