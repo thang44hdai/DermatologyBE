@@ -170,3 +170,53 @@ def unregister_fcm_token(
         "success": True,
         "message": "FCM token unregistered successfully"
     }
+
+
+@router.post("/test-notification", status_code=status.HTTP_200_OK)
+async def send_test_notification(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Gửi thông báo test để kiểm tra FCM
+    
+    Dùng endpoint này để verify rằng:
+    - FCM token đã được đăng ký đúng
+    - Firebase SDK hoạt động bình thường
+    - App có thể nhận push notification
+    
+    Returns:
+        Success message nếu gửi thành công
+        
+    Raises:
+        400: Nếu chưa đăng ký FCM token
+        500: Nếu gửi thông báo thất bại
+    """
+    from app.services.notification_service import notification_service
+    from datetime import datetime
+    
+    if not current_user.fcm_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chưa đăng ký FCM token. Vui lòng đăng ký trước bằng endpoint POST /users/fcm-token"
+        )
+    
+    # Gửi thông báo test
+    success = await notification_service.send_reminder_notification(
+        user_id=current_user.id,
+        reminder_id=0,  # Test notification, không liên kết reminder
+        title="🔔 Thông Báo Test",
+        body="Hệ thống thông báo đang hoạt động bình thường! ✅",
+        scheduled_time=datetime.now()
+    )
+    
+    if success:
+        return {
+            "success": True,
+            "message": "Đã gửi thông báo test thành công. Kiểm tra điện thoại của bạn!"
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Gửi thông báo thất bại. FCM token có thể đã hết hạn. Thử đăng ký lại token."
+        )

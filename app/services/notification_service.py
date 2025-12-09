@@ -98,13 +98,35 @@ class NotificationService:
                     'reminder_id': str(reminder_id),
                     'scheduled_time': scheduled_time.isoformat()
                 },
-                token=user_fcm_token  # Use actual FCM token
+                token=user_fcm_token
             )
             
             # Send notification
-            response = messaging.send(message)
-            logger.info(f"✅ Notification sent to user {user_id}: {response}")
-            return True
+            try:
+                response = messaging.send(message)
+                logger.info(f"✅ Notification sent to user {user_id}: {response}")
+                return True
+            
+            except messaging.UnregisteredError:
+                # Token không hợp lệ hoặc đã hết hạn
+                logger.warning(f"⚠️ FCM token của user {user_id} không hợp lệ, đang xóa...")
+                
+                # Tự động xóa token khỏi database
+                db_cleanup = SessionLocal()
+                try:
+                    user = db_cleanup.query(User).filter(User.id == user_id).first()
+                    if user:
+                        user.fcm_token = None
+                        db_cleanup.commit()
+                        logger.info(f"Đã xóa FCM token của user {user_id}")
+                finally:
+                    db_cleanup.close()
+                
+                return False
+            
+            except Exception as send_error:
+                logger.error(f"❌ Lỗi khi gửi thông báo: {send_error}")
+                return False
         
         except Exception as e:
             logger.error(f"Error sending notification: {e}")

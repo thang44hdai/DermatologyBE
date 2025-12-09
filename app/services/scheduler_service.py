@@ -81,7 +81,7 @@ class SchedulerService:
             
             for reminder in reminders:
                 # Check if reminder has ended
-                if reminder.end_date and reminder.end_date < current_date:
+                if reminder.end_date and reminder.end_date.date() < current_date:
                     continue
                 
                 # Check if reminder should trigger today
@@ -107,17 +107,31 @@ class SchedulerService:
                 
                 # Check if current time matches any reminder time
                 try:
-                    times = json.loads(reminder.times)
+                    times_data = json.loads(reminder.times)
                     
-                    for time_str in times:
+                    # Xử lý tương thích ngược
+                    if times_data and isinstance(times_data[0], str):
+                        # Format cũ: ["07:00", "12:00", "18:00"]
+                        time_strings = times_data
+                        dosage_map = {}  # Không có thông tin dosage
+                    else:
+                        # Format mới: [{"time": "07:00", "period": "morning", "dosage": "2"}, ...]
+                        time_strings = [t['time'] for t in times_data]
+                        # Tạo map giờ -> dosage để pass vào notification
+                        dosage_map = {t['time']: t.get('dosage', '1') for t in times_data}
+                    
+                    for time_str in time_strings:
                         # Parse time (HH:MM)
                         hour, minute = map(int, time_str.split(':'))
                         reminder_time = datetime_time(hour, minute)
                         
                         # Check if current time matches (within the same minute)
                         if current_time.hour == reminder_time.hour and current_time.minute == reminder_time.minute:
-                            # Send notification
-                            await self.send_reminder_notification(db, reminder, now)
+                            # Get dosage for this time
+                            dosage_for_time = dosage_map.get(time_str, reminder.dosage)
+                            
+                            # Send notification with dosage info
+                            await self.send_reminder_notification(db, reminder, now, dosage_for_time)
                 
                 except Exception as e:
                     logger.error(f"Error checking reminder {reminder.id}: {e}")
@@ -131,7 +145,8 @@ class SchedulerService:
         self,
         db: Session,
         reminder: MedicationReminder,
-        scheduled_time: datetime
+        scheduled_time: datetime,
+        dosage: str = None
     ):
         """
         Send push notification for a reminder
@@ -140,6 +155,7 @@ class SchedulerService:
             db: Database session
             reminder: MedicationReminder object
             scheduled_time: When the reminder is scheduled
+            dosage: Dosage for this specific time (from new format)
         """
         try:
             # Get user
@@ -153,14 +169,27 @@ class SchedulerService:
                 logger.info(f"⏸️ Skipped notification for reminder {reminder.id} (disabled by user)")
                 return
             
-            # Prepare notification data
-
-            #Đến giờ uống thuốc rồi! Hãy dùng đung giờ để đảm bảo sức khoẻ nhé!
-            # {reminder.dosage} {reminder.dosage_unit} {reminder.medicine_name}
-            title = "💊 Nhắc nhở uống thuốc"
-            body = f"Đến giờ uống thuốc rồi! Hãy dùng đúng giờ để đảm bảo sức khoẻ nhé!"
-            if reminder.dosage:
-                body += f" ({reminder.dosage} {reminder.dosage_unit}) {reminder.medicine_name}"
+            # Prepare notification message
+            title = "💊 Nhắc Nhở Uống Thuốc"
+            
+            # Build body with dosage info
+            body = f"Đến giờ uống {reminder.medicine_name}!"
+            
+            # Add dosage info (prioritize per-time dosage from new format)
+            if dosage and reminder.unit:
+                body += f" - Liều lượng: {dosage} {reminder.unit}"
+            elif dosage:
+                body += f" - Liều lượng: {dosage}"
+            elif reminder.dosage and reminder.unit:
+                body += f" - Liều lượng: {reminder.dosage} {reminder.unit}"
+            
+            # Add meal timing if available
+            if reminder.meal_timing:
+                body += f" ({reminder.meal_timing})"
+            
+            # Add notes if available
+            if reminder.notes:
+                body += f"\n💡 {reminder.notes}"
             
             # Send Firebase notification
             success = await notification_service.send_reminder_notification(
