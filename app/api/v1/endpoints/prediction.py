@@ -130,22 +130,30 @@ async def predict_disease(
                 detail=f"File too large. Max size: {settings.MAX_UPLOAD_SIZE / (1024*1024)}MB"
             )
         
-        image = Image.open(io.BytesIO(contents))
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
         
         # Verify it's actually an image
         image.verify()
         
         # Re-open image after verify (verify closes the file)
-        image = Image.open(io.BytesIO(contents))
+        image = Image.open(io.BytesIO(contents)).convert("RGB")
         
-        # Predict using AI service
+        # 1️⃣ Predict using AI service
         prediction_result = ai_service.predict(image)
         
-        # Save image to Firebase/Local storage
-        # Reset file pointer before saving
-        await file.seek(0)
+        # 2️⃣ Generate boundary (highlighted image)
+        cam, pred_idx = generate_heatmap(image)
+        processed_bytes = draw_boundary(image, cam)
+        
+        # 3️⃣ Upload Highlighted Image (Lưu ảnh đã khoanh vùng)
+        highlighted_file = UploadFile(
+            filename=f"highlight_{file.filename}" if file.filename else "highlight.jpg",
+            file=io.BytesIO(processed_bytes)
+        )
+        highlighted_file.file.seek(0)
+        
         image_url = await file_upload_service.save_image(
-            file=file,
+            file=highlighted_file,
             upload_dir="uploads/scans",
             prefix="scan"
         )
@@ -174,7 +182,7 @@ async def predict_disease(
         # Create scan record
         scan = Scans(
             user_id=current_user.id,
-            image_url=image_url,  # Save Firebase URL or local path
+            image_url=image_url,  # Save URL of highlighted image
             scan_date=datetime.utcnow(),
             status="completed",
             disease_id=disease.id
@@ -370,8 +378,14 @@ async def delete_scan(
     
     return {"message": "Scan deleted successfully", "scan_id": scan_id}
 
-@router.post("/detect-boundary")
+@router.post("/detect-boundary", deprecated=True)
 async def detect_boundary(file: UploadFile = File(...)):
+    """
+    ⚠️ DEPRECATED: Use POST /predict instead
+    
+    This endpoint will be removed in future versions.
+    The /predict endpoint now returns the highlighted image automatically.
+    """
     # 1️⃣ Load model
     if not ai_service.model_loaded:
         ai_service.load_model()
