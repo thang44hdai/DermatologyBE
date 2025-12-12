@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.database import Category, Medicines
+from app.models import Category, Medicines
 from app.schemas.category import CategoryCreate, CategoryUpdate
 from fastapi import HTTPException, status
 from typing import Optional

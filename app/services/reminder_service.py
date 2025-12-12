@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from fastapi import HTTPException, status
 
-from app.models.database import MedicationReminder, Medicines
+from app.models import MedicationReminder, Medicines
 from app.schemas.reminder import ReminderCreate, ReminderUpdate
 
 logger = logging.getLogger(__name__)
@@ -384,7 +384,7 @@ class ReminderService:
         Returns:
             Daily schedule with reminder details and adherence status
         """
-        from app.models.database import AdherenceLog
+        from app.models import AdherenceLog
         from datetime import datetime, timedelta
         
         # Get all active reminders

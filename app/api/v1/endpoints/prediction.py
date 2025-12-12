@@ -18,7 +18,7 @@ from app.schemas.prediction import (
 from app.services.ai_service import ai_service
 from app.config import settings
 from app.core.dependencies import get_db, get_current_user
-from app.models.database import User, Scans, DiagnosisHistory, Disease, MedicineDiseaseLink, Medicines
+from app.models import User, Scans, DiagnosisHistory, Disease, MedicineDiseaseLink, Medicines
 from app.utils.file_upload import file_upload_service
 
 router = APIRouter()

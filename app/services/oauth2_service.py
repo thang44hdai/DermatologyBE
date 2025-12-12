@@ -13,7 +13,7 @@ from google.auth.transport import requests
 from google.oauth2 import id_token
 
 from app.config.settings import settings
-from app.models.database import User
+from app.models import User
 from app.core.security import get_password_hash
 
 logger = logging.getLogger(__name__)

@@ -10,7 +10,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from app.models.database import ChatSessions, ChatMessages
+from app.models import ChatSessions, ChatMessages
 
 
 class ChatService:

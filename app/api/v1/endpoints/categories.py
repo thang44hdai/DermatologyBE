@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from app.core.dependencies import get_db
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
 from app.services.category_service import category_service
-from app.models.database import User
+from app.models import User
 from app.core.dependencies import get_current_user, get_current_admin
 from fastapi import Form
 
@@ -113,7 +113,7 @@ def get_category(
     category = category_service.get_category(db, category_id)
     
     # Add medicine count
-    from app.models.database import Medicines
+    from app.models import Medicines
     category.medicine_count = db.query(Medicines).filter(
         Medicines.category_id == category_id
     ).count()
@@ -191,7 +191,7 @@ async def update_category(
         )
     
     # Add medicine count
-    from app.models.database import Medicines
+    from app.models import Medicines
     category.medicine_count = db.query(Medicines).filter(
         Medicines.category_id == category_id
     ).count()

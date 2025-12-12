@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, extract
 from fastapi import HTTPException, status
 
-from app.models.database import AdherenceLog, MedicationReminder
+from app.models import AdherenceLog, MedicationReminder
 from app.schemas.reminder import (
     AdherenceAction,
     AdherenceLogResponse, 
