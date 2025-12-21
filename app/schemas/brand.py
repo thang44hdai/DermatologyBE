@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -37,3 +37,61 @@ class BrandListResponse(BaseModel):
     total: int
     skip: int
     limit: int
+
+
+class BrandInfo(BaseModel):
+    """Basic brand info for nested responses"""
+    id: int
+    name: str
+    logo_path: Optional[str] = None
+
+
+class MedicineInBrand(BaseModel):
+    """Medicine info in brand listing"""
+    id: int
+    name: str
+    description: str
+    generic_name: Optional[str] = None
+    type: Optional[str] = None
+    dosage: Optional[str] = None
+    price: Optional[float] = None
+    images: Optional[List[str]] = []
+    
+    class Config:
+        from_attributes = True
+
+
+class BrandMedicinesResponse(BaseModel):
+    """Response for getting medicines by brand"""
+    brand: BrandInfo
+    medicines: List[MedicineInBrand]
+    total: int
+    skip: int
+    limit: int
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "brand": {
+                    "id": 1,
+                    "name": "Sanofi",
+                    "logo_path": "https://storage.googleapis.com/sanofi_logo.jpg"
+                },
+                "medicines": [
+                    {
+                        "id": 1,
+                        "name": "Doliprane 500mg",
+                        "description": "Thuốc hạ sốt, giảm đau",
+                        "generic_name": "Paracetamol",
+                        "type": "tablet",
+                        "dosage": "500mg",
+                        "price": 35000,
+                        "images": ["https://storage.googleapis.com/medicine1.jpg"]
+                    }
+                ],
+                "total": 1,
+                "skip": 0,
+                "limit": 50
+            }
+        }
+

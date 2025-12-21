@@ -8,7 +8,8 @@ from app.schemas.brand import (
     BrandCreate,
     BrandUpdate,
     BrandResponse,
-    BrandListResponse
+    BrandListResponse,
+    BrandMedicinesResponse
 )
 from app.models import User
 from app.utils.file_upload import FileUploadService
@@ -186,3 +187,68 @@ async def get_brand_by_name(
             detail=f"Brand with name '{brand_name}' not found"
         )
     return BrandResponse.from_orm(brand)
+
+
+@router.get("/{brand_id}/medicines", response_model=BrandMedicinesResponse)
+def get_medicines_by_brand(
+    brand_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all medicines for a specific brand
+    
+    Args:
+        brand_id: Brand ID
+        skip: Offset for pagination
+        limit: Number of items (max 100)
+        
+    Returns:
+        Brand info and list of medicines with example response
+    """
+    from app.models import Medicines
+    import json
+    
+    # Get brand
+    brand = BrandService.get_brand(db, brand_id)
+    
+    # Get medicines for this brand
+    medicines_query = db.query(Medicines).filter(Medicines.brand_id == brand_id)
+    total = medicines_query.count()
+    medicines = medicines_query.offset(skip).limit(limit).all()
+    
+    # Parse medicine images from JSON
+    medicines_data = []
+    for medicine in medicines:
+        # Parse images
+        images = []
+        if medicine.image_url:
+            try:
+                images = json.loads(medicine.image_url)
+            except:
+                images = [medicine.image_url] if medicine.image_url else []
+        
+        medicines_data.append({
+            "id": medicine.id,
+            "name": medicine.name,
+            "description": medicine.description,
+            "generic_name": medicine.generic_name,
+            "type": medicine.type,
+            "dosage": medicine.dosage,
+            "price": medicine.price,
+            "images": images
+        })
+    
+    return {
+        "brand": {
+            "id": brand.id,
+            "name": brand.name,
+            "logo_path": brand.logo_path
+        },
+        "medicines": medicines_data,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
+
