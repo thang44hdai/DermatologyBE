@@ -145,17 +145,25 @@ async def predict_disease(
         cam, pred_idx = generate_heatmap(image)
         processed_bytes = draw_boundary(image, cam)
         
-        # 3️⃣ Upload Highlighted Image (Lưu ảnh đã khoanh vùng)
+        # 3️⃣ Upload Original Image
+        await file.seek(0)
+        original_image_url = await file_upload_service.save_image(
+            file=file,
+            upload_dir="uploads/scans",
+            prefix="scan"
+        )
+        
+        # 4️⃣ Upload Highlighted Image
         highlighted_file = UploadFile(
             filename=f"highlight_{file.filename}" if file.filename else "highlight.jpg",
             file=io.BytesIO(processed_bytes)
         )
         highlighted_file.file.seek(0)
         
-        image_url = await file_upload_service.save_image(
+        highlighted_image_url = await file_upload_service.save_image(
             file=highlighted_file,
-            upload_dir="uploads/scans",
-            prefix="scan"
+            upload_dir="uploads/scans_highlight",
+            prefix="scan_highlight"
         )
         
         # Search disease by Vietnamese label (label_vi)
@@ -182,7 +190,8 @@ async def predict_disease(
         # Create scan record
         scan = Scans(
             user_id=current_user.id,
-            image_url=image_url,  # Save URL of highlighted image
+            image_url=original_image_url,  # Original image
+            highlighted_image_url=highlighted_image_url,  # Highlighted image with boundary
             scan_date=datetime.utcnow(),
             status="completed",
             disease_id=disease.id
@@ -219,7 +228,8 @@ async def predict_disease(
                 "label_vi": prediction_result['label_vi'],
                 "confidence": prediction_result['confidence'],
                 "scan_id": scan.id,
-                "image_url": image_url,
+                "image_url": original_image_url,  # Original image
+                "highlighted_image_url": highlighted_image_url,  # Highlighted image with boundary
                 "disease": disease_data,
                 "diagnosis_history_id": diagnosis_history.id,
                 "user_id": current_user.id
@@ -281,6 +291,7 @@ async def get_scan_history(
         result.append({
             "scan_id": scan.id,
             "image_url": scan.image_url,
+            "highlighted_image_url": scan.highlighted_image_url,
             "scan_date": scan.scan_date,
             "status": scan.status,
             "disease": disease_data,
@@ -337,6 +348,7 @@ async def get_scan_detail(
         "scan_id": scan.id,
         "user_id": scan.user_id,
         "image_url": scan.image_url,
+        "highlighted_image_url": scan.highlighted_image_url,
         "scan_date": scan.scan_date,
         "status": scan.status,
         "disease": disease_data,
