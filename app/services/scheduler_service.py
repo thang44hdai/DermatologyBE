@@ -16,7 +16,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config.settings import settings
-from app.models.database import MedicationReminder, User
+from app.models import MedicationReminder, User
 from app.services.notification_service import notification_service
 
 logger = logging.getLogger(__name__)

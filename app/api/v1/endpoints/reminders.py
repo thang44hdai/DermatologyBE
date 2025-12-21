@@ -28,7 +28,7 @@ from app.schemas.reminder import (
     CalendarDaySchedule,
     DailyScheduleDetail
 )
-from app.models.database import User
+from app.models import User
 
 router = APIRouter()
 
@@ -430,7 +430,7 @@ async def toggle_medication_taken(
     Returns:
         Updated or created adherence log
     """
-    from app.models.database import AdherenceLog, MedicationReminder
+    from app.models import AdherenceLog, MedicationReminder
     from sqlalchemy import and_
     from datetime import timedelta, date
     import json

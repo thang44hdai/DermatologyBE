@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from fastapi import HTTPException, status
 
-from app.models.database import Brand
+from app.models import Brand
 from app.schemas.brand import BrandCreate, BrandUpdate
 
 

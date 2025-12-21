@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 from typing import List, Tuple, Optional
 import json
 
-from app.models.database import Disease, Medicines, DiagnosisHistory, MedicineDiseaseLink
+from app.models import Disease, Medicines, DiagnosisHistory, MedicineDiseaseLink
 from app.schemas.disease import DiseaseCreate, DiseaseUpdate
 
 

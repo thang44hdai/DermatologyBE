@@ -11,7 +11,7 @@ from app.schemas.pharmacy import (
     PharmacyListResponse,
     PharmacyWithDistanceResponse
 )
-from app.models.database import User
+from app.models import User
 from app.utils.file_upload import FileUploadService
 
 router = APIRouter()

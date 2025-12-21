@@ -10,7 +10,7 @@ from app.schemas.brand import (
     BrandResponse,
     BrandListResponse
 )
-from app.models.database import User
+from app.models import User
 from app.utils.file_upload import FileUploadService
 
 router = APIRouter()

@@ -13,7 +13,7 @@ from app.schemas.chat import (
     ChatHistoryResponse, ChatMessageItem, ChatWSRequest, ChatWSResponse, ChatWSError
 )
 from app.services.chat_service import chat_service
-from app.models.database import ChatSessions, ChatMessages, User
+from app.models import ChatSessions, ChatMessages, User
 
 logger = logging.getLogger(__name__)
 

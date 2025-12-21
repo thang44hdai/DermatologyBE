@@ -10,7 +10,7 @@ from app.api.v1.router import api_router
 from app.services.ai_service import ai_service
 from app.services.chat_service import chat_service
 from app.db.session import engine
-from app.models.database import Base
+from app.models import Base
 
 # Setup logging
 logging.basicConfig(

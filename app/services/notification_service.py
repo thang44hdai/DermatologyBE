@@ -73,7 +73,7 @@ class NotificationService:
         try:
             # Import here to avoid circular dependency
             from app.db.session import SessionLocal
-            from app.models.database import User
+            from app.models import User
             
             # Get user's FCM token from database
             db = SessionLocal()

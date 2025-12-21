@@ -3,7 +3,7 @@ from typing import Optional, List
 from fastapi import HTTPException, status
 import json
 
-from app.models.database import Pharmacies
+from app.models import Pharmacies
 from app.schemas.pharmacy import PharmacyCreate, PharmacyUpdate
 
 

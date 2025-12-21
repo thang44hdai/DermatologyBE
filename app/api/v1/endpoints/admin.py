@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from app.core.dependencies import get_db, get_current_admin
 from app.services.admin_service import admin_service
-from app.models.database import User
+from app.models import User
 
 router = APIRouter()
 

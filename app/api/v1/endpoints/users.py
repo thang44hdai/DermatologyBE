@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from app.core.dependencies import get_db, get_current_active_user, get_current_admin
 from app.schemas.user import UserCreate, UserResponse, UserRoleUpdate
 from app.services.user_service import UserService
-from app.models.database import User
+from app.models import User
 
 router = APIRouter()
 
@@ -80,7 +80,7 @@ def delete_user(
     - Admins can delete any account
     """
     # Check if user is admin or deleting their own account
-    from app.models.database import UserRole
+    from app.models import UserRole
     
     if current_user.role != UserRole.ADMIN and current_user.id != user_id:
         raise HTTPException(

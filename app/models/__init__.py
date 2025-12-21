@@ -3,33 +3,45 @@ Export all models - Database models and AI model
 """
 
 from .ai_model import SkinDiseaseFusionModel
-from .database import (
-    # Core
-    Base,
-    UserRole,
-    
-    # Authentication & Users
+
+# Core
+from app.db.session import Base
+
+# Authentication & Users
+from .user import (
     User,
-    
-    # AI Diagnosis & Scans
+    UserRole,
+    AppLogs,
+    Notifications,
+)
+
+# AI Diagnosis & Scans
+from .medical import (
     Scans,
     DiagnosisHistory,
     Disease,
-    
-    # Medicine & Pharmacies
+)
+
+# Medicine & Pharmacies
+from .product import (
     Medicines,
+    Brand,
+    Category,
     Pharmacies,
+    MedicineDiseaseLink,
     MedicinePharmacyLink,
-    
-    # Chat
+)
+
+# Chat
+from .chat import (
     ChatSessions,
     ChatMessages,
-    
+)
 
-    
-    # System
-    AppLogs,
-    Notifications,
+# System
+from .reminder import (
+    MedicationReminder,
+    AdherenceLog,
 )
 
 __all__ = [
@@ -42,6 +54,8 @@ __all__ = [
     
     # Authentication & Users
     "User",
+    "AppLogs",
+    "Notifications",
     
     # AI Diagnosis & Scans
     "Scans",
@@ -50,7 +64,10 @@ __all__ = [
     
     # Medicine & Pharmacies
     "Medicines",
+    "Brand",
+    "Category",
     "Pharmacies",
+    "MedicineDiseaseLink",
     "MedicinePharmacyLink",
     
     # Chat
@@ -58,6 +75,6 @@ __all__ = [
     "ChatMessages",
     
     # System
-    "AppLogs",
-    "Notifications",
+    "MedicationReminder",
+    "AdherenceLog",
 ]

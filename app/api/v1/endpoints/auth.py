@@ -19,7 +19,7 @@ from app.schemas.user import (
 from app.schemas.oauth import GoogleAuthRequest, FacebookAuthRequest, OAuth2Response
 from app.services.user_service import UserService
 from app.services.oauth2_service import oauth2_service
-from app.models.database import User
+from app.models import User
 from app.config import settings
 
 router = APIRouter(tags=["Authentication"])

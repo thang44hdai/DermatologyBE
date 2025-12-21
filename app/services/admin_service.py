@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract, desc
 
-from app.models.database import (
+from app.models import (
     MedicationReminder, 
     AdherenceLog, 
     User,

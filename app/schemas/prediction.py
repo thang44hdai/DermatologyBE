@@ -48,7 +48,8 @@ class PredictionData(BaseModel):
     label_vi: str
     confidence: float
     scan_id: int
-    image_url: str
+    image_url: str  # Original image
+    highlighted_image_url: Optional[str] = None  # Highlighted image with boundary
     disease: DiseaseInfo
     diagnosis_history_id: int
     user_id: int
@@ -80,7 +81,8 @@ class DiagnosisHistoryInfo(BaseModel):
 class ScanHistoryItem(BaseModel):
     """Individual scan history item"""
     scan_id: int
-    image_url: Optional[str]
+    image_url: Optional[str]  # Original image
+    highlighted_image_url: Optional[str] = None  # Highlighted image
     scan_date: datetime
     status: str
     disease: Optional[DiseaseInfo]
@@ -99,7 +101,8 @@ class ScanDetailResponse(BaseModel):
     """Response model for scan detail"""
     scan_id: int
     user_id: int
-    image_url: Optional[str]
+    image_url: Optional[str]  # Original image
+    highlighted_image_url: Optional[str] = None  # Highlighted image
     scan_date: datetime
     status: str
     disease: Optional[DiseaseInfo]

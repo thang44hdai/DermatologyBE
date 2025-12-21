@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
 from app.services.chat_service import chat_service
-from app.models.database import MedicationReminder, AdherenceLog
+from app.models import MedicationReminder, AdherenceLog
 from app.schemas.reminder import AIAdvice
 
 logger = logging.getLogger(__name__)
