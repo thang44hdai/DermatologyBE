@@ -4,7 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.core.dependencies import get_db
-from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse
+from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse, CategoryMedicinesResponse
 from app.services.category_service import category_service
 from app.models import User
 from app.core.dependencies import get_current_user, get_current_admin
@@ -220,7 +220,7 @@ def delete_category(
 
 
 
-@router.get("/{category_id}/medicines")
+@router.get("/{category_id}/medicines", response_model=CategoryMedicinesResponse)
 def get_medicines_by_category(
     category_id: int,
     skip: int = Query(0, ge=0),
@@ -236,9 +236,32 @@ def get_medicines_by_category(
         limit: Number of items (max 100)
         
     Returns:
-        Category info and list of medicines
+        Category info and list of medicines with example response
     """
     result = category_service.get_medicines_by_category(db, category_id, skip, limit)
+    
+    # Parse medicine images from JSON
+    import json
+    medicines_data = []
+    for medicine in result["medicines"]:
+        # Parse images
+        images = []
+        if medicine.image_url:
+            try:
+                images = json.loads(medicine.image_url)
+            except:
+                images = [medicine.image_url] if medicine.image_url else []
+        
+        medicines_data.append({
+            "id": medicine.id,
+            "name": medicine.name,
+            "description": medicine.description,
+            "generic_name": medicine.generic_name,
+            "type": medicine.type,
+            "dosage": medicine.dosage,
+            "price": medicine.price,
+            "images": images
+        })
     
     return {
         "category": {
@@ -246,7 +269,7 @@ def get_medicines_by_category(
             "name": result["category"].name,
             "image_url": result["category"].image_url
         },
-        "medicines": result["medicines"],
+        "medicines": medicines_data,
         "total": result["total"],
         "skip": skip,
         "limit": limit
