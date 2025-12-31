@@ -1,3 +1,7 @@
+# ========================================
+# CPU-Only Requirements for AWS Deployment
+# ========================================
+
 # FastAPI Dependencies
 fastapi>=0.104.1
 uvicorn[standard]>=0.24.0
@@ -16,13 +20,6 @@ python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 bcrypt>=4.1.1
 
-# AI/ML
-torch>=2.1.0
-torchvision>=0.16.0
-timm>=0.9.12
-Pillow>=10.1.0
-numpy>=1.26.2
-
 # Utilities
 python-dotenv>=1.0.0
 requests>=2.31.0
@@ -36,7 +33,7 @@ langchain-community
 langchain-huggingface
 langchain-text-splitters
 langchain_openai
-faiss-cpu
+faiss-cpu  # CPU version of FAISS
 sentence-transformers
 
 # WebSocket
@@ -48,7 +45,7 @@ hiredis>=2.2.0
 
 # Scheduler for reminders
 APScheduler>=3.10.0
-pytz>=2.023.3
+pytz>=2023.3
 
 # OAuth2
 google-auth>=2.23.0  # Verify Google ID tokens
@@ -59,5 +56,15 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 
-# Computer Vision (for GradCAM)
-opencv-python-headless>=4.8.0
+# ========================================
+# AI/ML - CPU ONLY VERSIONS (Lightweight for AWS)
+# Use extra-index-url to search PyTorch repo in addition to PyPI
+# ========================================
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.1.0
+torchvision>=0.16.0
+timm>=0.9.12
+Pillow>=10.1.0
+numpy>=1.26.2
+opencv-python-headless>=4.8.0  # Headless version for servers (no GUI dependencies)
+

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MySQL Database
   mysql:
@@ -11,35 +9,24 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-dermatology_db}
       MYSQL_USER: ${MYSQL_USER:-dermatology_user}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dermatology_pass}
-      # MySQL optimizations for AWS
-      MYSQL_INNODB_BUFFER_POOL_SIZE: ${MYSQL_BUFFER_POOL_SIZE:-256M}
     ports:
-      - "3306:3306"
+      - "3307:3306" # Changed from 3306 to avoid port conflict
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
       - dermatology_network
-    # Resource limits for AWS (adjust based on your instance)
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # FastAPI Application (CPU-only)
+  # FastAPI Application (Development - Simplified)
   app:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: dermatology-api:cpu-latest
+      dockerfile: Dockerfile.dev # Use simplified Dockerfile
+    image: dermatology-api:dev
     container_name: dermatology_app
     restart: unless-stopped
     ports:
@@ -49,8 +36,8 @@ services:
       - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-dermatology_user}:${MYSQL_PASSWORD:-dermatology_pass}@mysql:3306/${MYSQL_DATABASE:-dermatology_db}
 
       # App Config
-      - DEBUG=${DEBUG:-False}
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
 
       # AI/LLM Config
@@ -60,11 +47,6 @@ services:
       # AWS Specific
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET}
-
-      # Performance (CPU-only optimizations)
-      - OMP_NUM_THREADS=2
-      - MKL_NUM_THREADS=2
-      - OPENBLAS_NUM_THREADS=2
 
     volumes:
       - ./uploads:/app/uploads
@@ -76,24 +58,7 @@ services:
     networks:
       - dermatology_network
 
-    # Resource limits for AWS EC2 (adjust based on instance type)
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
-          cpus: '1.0'
-          memory: 2G
-
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/v1/health" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  # Redis Cache (Optional - recommended for production)
+  # Redis Cache
   redis:
     image: redis:7-alpine
     container_name: dermatology_redis
@@ -103,11 +68,6 @@ services:
     networks:
       - dermatology_network
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
