@@ -4,7 +4,7 @@ Script to create an admin user for the Dermatology application
 import sys
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
-from app.models.database import User, UserRole
+from app.models.user import User, UserRole
 from app.core.security import get_password_hash
 
 
