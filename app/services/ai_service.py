@@ -36,9 +36,16 @@ class AIService:
 
             logger.info(f"Model info: {num_classes} classes")
 
-            # Initialize model
+            # Initialize model (architecture matches trained checkpoint)
             self.model = SkinDiseaseFusionModel(num_classes=num_classes)
-            self.model.load_state_dict(checkpoint['model_state_dict'])
+
+            # Load weights (non-strict to allow minor key mismatches across versions)
+            load_info = self.model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+            if getattr(load_info, 'missing_keys', None) or getattr(load_info, 'unexpected_keys', None):
+                logger.warning(
+                    f"Model load warnings - missing keys: {load_info.missing_keys}, unexpected keys: {load_info.unexpected_keys}"
+                )
+
             self.model = self.model.to(self.device)
             self.model.eval()
 
