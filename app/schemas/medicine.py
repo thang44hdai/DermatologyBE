@@ -24,9 +24,9 @@ class MedicineBase(BaseModel):
     description: str = Field(..., min_length=1, description="Medicine description")
     generic_name: Optional[str] = Field(None, max_length=255, description="Generic/scientific name")
     type: Optional[str] = Field(None, max_length=100, description="Medicine type (e.g., tablet, syrup)")
-    dosage: Optional[str] = Field(None, max_length=100, description="Dosage information")
+    dosage: Optional[str] = Field(None, max_length=500, description="Dosage information")
     side_effects: Optional[str] = Field(None, description="Side effects")
-    suitable_for: Optional[str] = Field(None, max_length=10, description="Suitable for (e.g., adults, children)")
+    suitable_for: Optional[str] = Field(None, max_length=255, description="Suitable for (e.g., adults, children)")
     price: Optional[float] = Field(None, ge=0, description="Base price")
     images: Optional[List[str]] = Field(None, description="List of medicine image URLs")
     brand_id: Optional[int] = Field(None, description="Brand ID")
@@ -45,9 +45,9 @@ class MedicineUpdate(BaseModel):
     description: Optional[str] = Field(None, min_length=1)
     generic_name: Optional[str] = Field(None, max_length=255)
     type: Optional[str] = Field(None, max_length=100)
-    dosage: Optional[str] = Field(None, max_length=100)
+    dosage: Optional[str] = Field(None, max_length=500)
     side_effects: Optional[str] = None
-    suitable_for: Optional[str] = Field(None, max_length=10)
+    suitable_for: Optional[str] = Field(None, max_length=255)
     price: Optional[float] = Field(None, ge=0)
     images: Optional[List[str]] = None
     brand_id: Optional[int] = None

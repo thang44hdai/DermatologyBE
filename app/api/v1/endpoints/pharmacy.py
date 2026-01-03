@@ -22,7 +22,9 @@ async def create_pharmacy(
     name: str = Form(...),
     address: str = Form(...),
     phone: Optional[str] = Form(None),
-    open_hours: Optional[str] = Form(None),
+    open_time: Optional[str] = Form(None, description="Opening time (HH:MM:SS format, e.g., 08:00:00)"),
+    close_time: Optional[str] = Form(None, description="Closing time (HH:MM:SS format, e.g., 21:00:00)"),
+    is_open_247: bool = Form(False, description="Whether pharmacy is open 24/7"),
     ratings: Optional[float] = Form(None),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
@@ -39,7 +41,9 @@ async def create_pharmacy(
         name: Pharmacy name (required)
         address: Pharmacy address (required)
         phone: Contact phone number (optional)
-        open_hours: Opening hours (optional)
+        open_time: Opening time in HH:MM:SS format (optional)
+        close_time: Closing time in HH:MM:SS format (optional)
+        is_open_247: Whether pharmacy is open 24/7 (default: false)
         ratings: Rating 0-5 (optional)
         latitude: Location latitude (optional)
         longitude: Location longitude (optional)
@@ -59,12 +63,31 @@ async def create_pharmacy(
                 detail=f"Failed to save images: {str(e)}"
             )
     
+    # Parse time strings to time objects
+    from datetime import time as dt_time
+    open_time_obj = None
+    close_time_obj = None
+    if open_time:
+        try:
+            h, m, s = map(int, open_time.split(':'))
+            open_time_obj = dt_time(h, m, s)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid open_time format. Use HH:MM:SS")
+    if close_time:
+        try:
+            h, m, s = map(int, close_time.split(':'))
+            close_time_obj = dt_time(h, m, s)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid close_time format. Use HH:MM:SS")
+    
     # Create pharmacy data
     pharmacy_data = PharmacyCreate(
         name=name,
         address=address,
         phone=phone,
-        open_hours=open_hours,
+        open_time=open_time_obj,
+        close_time=close_time_obj,
+        is_open_247=is_open_247,
         ratings=ratings,
         latitude=latitude,
         longitude=longitude,
@@ -135,7 +158,9 @@ async def update_pharmacy(
     name: Optional[str] = Form(None),
     address: Optional[str] = Form(None),
     phone: Optional[str] = Form(None),
-    open_hours: Optional[str] = Form(None),
+    open_time: Optional[str] = Form(None, description="Opening time (HH:MM:SS format)"),
+    close_time: Optional[str] = Form(None, description="Closing time (HH:MM:SS format)"),
+    is_open_247: Optional[bool] = Form(None, description="Whether pharmacy is open 24/7"),
     ratings: Optional[float] = Form(None),
     latitude: Optional[float] = Form(None),
     longitude: Optional[float] = Form(None),
@@ -153,7 +178,9 @@ async def update_pharmacy(
         name: Pharmacy name
         address: Pharmacy address
         phone: Contact phone
-        open_hours: Opening hours
+        open_time: Opening time (HH:MM:SS format)
+        close_time: Closing time (HH:MM:SS format)
+        is_open_247: Whether pharmacy is open 24/7
         ratings: Rating 0-5
         latitude: Location latitude
         longitude: Location longitude
@@ -174,12 +201,31 @@ async def update_pharmacy(
                 detail=f"Failed to save images: {str(e)}"
             )
     
+    # Parse time strings to time objects
+    from datetime import time as dt_time
+    open_time_obj = None
+    close_time_obj = None
+    if open_time:
+        try:
+            h, m, s = map(int, open_time.split(':'))
+            open_time_obj = dt_time(h, m, s)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid open_time format. Use HH:MM:SS")
+    if close_time:
+        try:
+            h, m, s = map(int, close_time.split(':'))
+            close_time_obj = dt_time(h, m, s)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid close_time format. Use HH:MM:SS")
+    
     # Create update data
     pharmacy_update = PharmacyUpdate(
         name=name,
         address=address,
         phone=phone,
-        open_hours=open_hours,
+        open_time=open_time_obj,
+        close_time=close_time_obj,
+        is_open_247=is_open_247,
         ratings=ratings,
         latitude=latitude,
         longitude=longitude

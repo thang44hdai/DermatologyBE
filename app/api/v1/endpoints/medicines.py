@@ -36,6 +36,7 @@ async def create_medicine(
     side_effects: Optional[str] = Form(None, description="Side effects"),
     suitable_for: Optional[str] = Form(None, description="Suitable for (adults/children)"),
     price: Optional[float] = Form(None, description="Base price"),
+    brand_id: Optional[int] = Form(None, description="Brand ID"),
     category_id: Optional[int] = Form(None, description="Category ID"),
     images: List[UploadFile] = File(None, description="Medicine image files (multiple)"),
     db: Session = Depends(get_db),
@@ -103,6 +104,7 @@ async def create_medicine(
         side_effects=side_effects,
         suitable_for=suitable_for,
         price=price,
+        brand_id=brand_id,
         category_id=category_id,
         images=image_urls if image_urls else None
     )
@@ -183,6 +185,7 @@ async def update_medicine(
     side_effects: Optional[str] = Form(None, description="Side effects"),
     suitable_for: Optional[str] = Form(None, description="Suitable for"),
     price: Optional[float] = Form(None, description="Base price"),
+    brand_id: Optional[int] = Form(None, description="Brand ID (use -1 to remove brand)"),
     category_id: Optional[int] = Form(None, description="Category ID (use -1 to remove category)"),
     images: List[UploadFile] = File(None, description="Medicine image files (multiple) - will replace existing images"),
     keep_existing_images: bool = Form(True, description="Keep existing images and append new ones"),
@@ -286,8 +289,16 @@ async def update_medicine(
         update_data["suitable_for"] = suitable_for
     if price is not None:
         update_data["price"] = price
+    if brand_id is not None:
+        if brand_id == -1:
+            update_data["brand_id"] = None  # Remove brand
+        else:
+            update_data["brand_id"] = brand_id
     if category_id is not None:
-        update_data["category_id"] = category_id
+        if category_id == -1:
+            update_data["category_id"] = None  # Remove category
+        else:
+            update_data["category_id"] = category_id
     
     if not update_data and image_urls is None:
         raise HTTPException(
