@@ -67,6 +67,8 @@ services:
       - OPENBLAS_NUM_THREADS=2
 
     volumes:
+      - ./.env:/app/.env
+      - ./firebase-service-account.json:/app/firebase-service-account.json
       - ./uploads:/app/uploads
       - ./faiss_index_store:/app/faiss_index_store
       - ./models:/app/models

@@ -55,9 +55,9 @@ async def create_category(
     
     # Upload image after category creation (to use category ID in path)
     if image:
-        from app.utils.firebase_storage import upload_image_to_firebase
+        from app.utils.firebase_storage import firebase_storage
         folder = f"categories/{category.id}"
-        image_url = await upload_image_to_firebase(image, folder)
+        image_url = firebase_storage.upload_file(image, folder)
         
         # Update category with image URL
         category.image_url = image_url
@@ -161,9 +161,9 @@ async def update_category(
         await image.seek(0)  # Reset file pointer
         
         # Upload to Firebase
-        from app.utils.firebase_storage import upload_image_to_firebase
+        from app.utils.firebase_storage import firebase_storage
         folder = f"categories/{category_id}"
-        image_url = await upload_image_to_firebase(image, folder)
+        image_url = firebase_storage.upload_file(image, folder)
         
         # Get category and update image
         category = category_service.get_category(db, category_id)
