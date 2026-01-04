@@ -6,8 +6,7 @@ sys.path.append(os.getcwd())
 
 from sqlalchemy.orm import Session, joinedload
 from app.db.session import SessionLocal
-from app.models.database import Medicines 
-from app.models.database import Brand     
+from app.models.product import Medicines, Brand     
 
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
