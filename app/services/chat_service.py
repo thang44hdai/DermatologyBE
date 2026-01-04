@@ -55,10 +55,11 @@ class ChatService:
             
             # Initialize ChatOpenAI (pointing to local llama-server)
             print("Initializing LLM client...")
+            from app.config import settings
             self.llm = ChatOpenAI(
-                base_url="http://localhost:8080/v1",
+                base_url=settings.LLM_SERVER_URL,  # Use from environment
                 api_key="not-needed",  
-                model="local-model",
+                model="PharmaAI-4B",  # Correct model name
                 temperature=0.7,
                 max_tokens=512
             )
