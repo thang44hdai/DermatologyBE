@@ -206,6 +206,8 @@ class MedicineService:
         """
         Delete a medicine
         
+        Automatically removes all pharmacy and disease links before deletion.
+        
         Args:
             db: Database session
             medicine_id: Medicine ID to delete
@@ -221,17 +223,17 @@ class MedicineService:
                 detail="Medicine not found"
             )
         
-        # Check if medicine is linked to any pharmacies
-        links = db.query(MedicinePharmacyLink).filter(
+        # Delete all pharmacy links (cascade)
+        db.query(MedicinePharmacyLink).filter(
             MedicinePharmacyLink.medicine_id == medicine_id
-        ).count()
+        ).delete()
         
-        if links > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot delete medicine. It is linked to {links} pharmacy/pharmacies. Remove links first."
-            )
+        # Delete all disease links (cascade)
+        db.query(MedicineDiseaseLink).filter(
+            MedicineDiseaseLink.medicine_id == medicine_id
+        ).delete()
         
+        # Now delete the medicine itself
         db.delete(medicine)
         db.commit()
         return True

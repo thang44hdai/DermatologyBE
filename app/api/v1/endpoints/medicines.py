@@ -528,3 +528,71 @@ async def get_medicine_availability(
         List of pharmacies with stock and price info for this medicine
     """
     return medicine_service.get_medicine_availability(db, medicine_id)
+
+
+@router.delete("/{medicine_id}/images")
+async def delete_medicine_image(
+    medicine_id: int,
+    image_url: str = Query(..., description="Exact URL of the image to delete"),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    """
+    Delete a specific image from medicine's image list
+    
+    **Requires Admin Role**
+    
+    Args:
+        medicine_id: Medicine ID
+        image_url: Exact URL of the image to delete
+        
+    Returns:
+        Success message with updated image count
+        
+    Example:
+        DELETE /medicines/123/images?image_url=https://storage.googleapis.com/image1.jpg
+    """
+    # Get medicine
+    medicine = medicine_service.get_medicine(db, medicine_id)
+    
+    # Parse existing images
+    existing_images = []
+    if medicine.image_url:
+        try:
+            existing_images = json.loads(medicine.image_url)
+        except:
+            if medicine.image_url:
+                existing_images = [medicine.image_url]
+    
+    if not existing_images:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medicine has no images"
+        )
+    
+    # Check if image exists in list
+    if image_url not in existing_images:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Image URL not found in medicine's images"
+        )
+    
+    # Remove the image from list
+    existing_images.remove(image_url)
+    
+    # Update medicine with new image list
+    if existing_images:
+        medicine.image_url = json.dumps(existing_images)
+    else:
+        medicine.image_url = None
+    
+    db.commit()
+    db.refresh(medicine)
+    
+    return {
+        "success": True,
+        "message": f"Image removed successfully",
+        "remaining_images": len(existing_images),
+        "images": existing_images
+    }
+
