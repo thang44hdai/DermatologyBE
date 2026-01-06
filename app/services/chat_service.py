@@ -20,11 +20,11 @@ class ChatService:
     """
     
     # Similarity threshold for RAG retrieval (L2 distance)
-    # For paraphrase-multilingual-MiniLM-L12-v2 with L2 distance:
+    # For VoVanPhuc/sup-SimCSE-VietNamese-phobert-base with L2 distance:
     # - Lower scores = more similar (0.0 = identical)
     # - Typical range: 0.0 to 2.0
-    # - Threshold 1.5 = relaxed filtering (good for small databases)
-    SIMILARITY_THRESHOLD = 1.4  # Increased for better recall with limited products
+    # - Threshold 1.4 = balanced for Vietnamese semantic search
+    SIMILARITY_THRESHOLD = 1.4  # Tuned for Vietnamese PhoBERT model
     
     def __init__(self):
         self.vector_db: Optional[FAISS] = None
@@ -41,10 +41,10 @@ class ChatService:
         try:
             print("Initializing ChatService...")
             
-            # Load HuggingFace Embeddings
-            print("Loading HuggingFace embeddings...")
+            # Load HuggingFace Embeddings (Vietnamese-specific model)
+            print("Loading Vietnamese PhoBERT embeddings...")
             self.embeddings = HuggingFaceEmbeddings(
-                model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+                model_name="VoVanPhuc/sup-SimCSE-VietNamese-phobert-base",
                 encode_kwargs={'normalize_embeddings': True} 
             )
             

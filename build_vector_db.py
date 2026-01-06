@@ -15,7 +15,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # --- CẤU HÌNH ---
 VECTOR_DB_PATH = "faiss_index_store"
-EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+# Vietnamese-specific model for better semantic understanding
+EMBEDDING_MODEL_NAME = "VoVanPhuc/sup-SimCSE-VietNamese-phobert-base"
 
 def fetch_data_from_db():
     """
