@@ -49,7 +49,7 @@ async def chat_endpoint(
     """
     try:
         # Process the chat message
-        result = chat_service.process_chat(
+        result = await chat_service.process_chat(
             db=db,
             message=request.message,
             session_id=request.session_id,

@@ -11,6 +11,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from app.models import ChatSessions, ChatMessages
+from app.services.intent_classifier import IntentClassifier, Intent
 
 
 class ChatService:
@@ -29,6 +30,7 @@ class ChatService:
         self.vector_db: Optional[FAISS] = None
         self.embeddings: Optional[HuggingFaceEmbeddings] = None
         self.llm: Optional[ChatOpenAI] = None
+        self.intent_classifier = IntentClassifier()
         self.initialized = False
         
     def initialize(self):
@@ -59,7 +61,7 @@ class ChatService:
             self.llm = ChatOpenAI(
                 base_url=settings.LLM_SERVER_URL,  # Use from environment
                 api_key="not-needed",  
-                model="PharmaAI-4B",  # Correct model name
+                model="PharmaAI-4B",  # Model name from llama.cpp server
                 temperature=0.7,
                 max_tokens=512
             )
@@ -238,7 +240,7 @@ class ChatService:
         
         return context_text, sources
     
-    def _build_prompt(self, user_message: str, context: str, chat_history: List[Dict[str, str]]) -> List:
+    def _build_prompt(self, user_message: str, context: str, chat_history: List[Dict[str, str]], intent: Intent = Intent.GENERAL) -> List:
         """
         Build the prompt for the LLM with system instructions, context, and history.
         
@@ -246,16 +248,64 @@ class ChatService:
             user_message: Current user question
             context: Retrieved context from RAG (can be empty for greetings/general questions)
             chat_history: Previous conversation messages
+            intent: Classified intent to customize system prompt
             
         Returns:
             List of LangChain message objects
         """
-        system_prompt = """Bạn là PharmaAI, một trợ lý AI chuyên nghiệp và tận tâm về lĩnh vực y tế, dược phẩm và chăm sóc sức khỏe da liễu của ứng dụng PharmaAI.
+        # Customize system prompt based on intent
+        if intent == Intent.GREETING:
+            system_prompt = """Bạn là PharmaAI, trợ lý AI thân thiện về y tế và dược phẩm.
+
+Nhiệm vụ:
+- Chào hỏi người dùng một cách ấm áp và TỰ NHIÊN
+- Giới thiệu NGẮN GỌN (2-3 câu) về khả năng của bạn
+- Khuyến khích họ đặt câu hỏi
+
+Lưu ý quan trọng:
+- TRẢ LỜI NGẮN GỌN (tối đa 3-4 câu)
+- KHÔNG liệt kê dài dòng các chức năng
+- Giọng điệu thân thiện, tự nhiên như trò chuyện"""
+        elif intent == Intent.FAREWELL:
+            system_prompt = """Bạn là PharmaAI, trợ lý AI thân thiện về y tế và dược phẩm.
+
+Nhiệm vụ:
+- Tạm biệt người dùng một cách ấm áp
+- Nhắc họ có thể quay lại bất cứ lúc nào
+
+Lưu ý:
+- TRẢ LỜI NGẮN GỌN (1-2 câu)
+- Giọng điệu thân thiện, tự nhiên"""
+        elif intent == Intent.DRUG_QUERY:
+            system_prompt = """Bạn là PharmaAI, trợ lý AI chuyên nghiệp về dược phẩm.
+
+Nhiệm vụ:
+- Cung cấp thông tin chi tiết về thuốc, sản phẩm dựa trên dữ liệu được cung cấp
+- Đề cập tên thuốc, thương hiệu, giá cả, công dụng
+- Hướng dẫn cách sử dụng an toàn
+
+Lưu ý:
+- KHÔNG bịa đặt thông tin về thuốc không có trong dữ liệu
+- Khuyên tham khảo bác sĩ/dược sĩ cho tình trạng nghiêm trọng"""
+        elif intent == Intent.MEDICAL_INFO:
+            system_prompt = """Bạn là PharmaAI, trợ lý AI về y tế và da liễu.
+
+Nhiệm vụ:
+- Giải thích về bệnh lý, triệu chứng một cách dễ hiểu
+- Gợi ý các sản phẩm phù hợp từ cơ sở dữ liệu
+- Đưa ra lời khuyên chăm sóc sức khỏe
+
+Lưu ý:
+- Chỉ gợi ý sản phẩm có trong dữ liệu
+- LUÔN khuyên đi khám bác sĩ nếu triệu chứng nghiêm trọng hoặc kéo dài
+- Không tự chẩn đoán hoặc kê đơn thuốc"""
+        else:  # GENERAL
+            system_prompt = """Bạn là PharmaAI, một trợ lý AI chuyên nghiệp và tận tâm về lĩnh vực y tế, dược phẩm và chăm sóc sức khỏe da liễu của ứng dụng PharmaAI.
 
 Nhiệm vụ của bạn:
 - Giải đáp các thắc mắc về sức khỏe, thuốc, bệnh lý và các vấn đề về da liễu cho người dùng một cách chính xác, dễ hiểu và dựa trên bằng chứng khoa học.
 - Khi có thông tin từ cơ sở dữ liệu, hãy sử dụng nó để đưa ra câu trả lời chính xác và đề cập đến tên thuốc, thương hiệu, giá cả.
-- Khi KHÔNG có thông tin cụ thể từ cơ sở dữ liệu (ví dụ: câu chào hỏi, câu hỏi chung), hãy trả lời một cách tự nhiên và thân thiện.
+- Khi KHÔNG có thông tin cụ thể từ cơ sở dữ liệu (ví dụ: câu hỏi chung), hãy trả lời một cách tự nhiên và hữu ích dựa trên kiến thức y học phổ thông.
 - Trả lời bằng tiếng Việt, ngắn gọn, dễ hiểu và thân thiện.
 
 Lưu ý quan trọng:
@@ -273,7 +323,10 @@ Lưu ý quan trọng:
                 messages.append(AIMessage(content=msg["content"]))
         
         # Add current query with or without context
-        if context:
+        # For greetings/farewells, keep it simple
+        if intent in [Intent.GREETING, Intent.FAREWELL]:
+            current_prompt = user_message
+        elif context:
             # We have relevant product/medicine information from database
             current_prompt = f"""Ngữ cảnh từ cơ sở dữ liệu:
 {context}
@@ -285,7 +338,7 @@ Hãy trả lời dựa trên ngữ cảnh trên."""
             # No relevant products found - handle as general conversation or definition
             current_prompt = f"""Câu hỏi của người dùng: {user_message}
 
-Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù hợp với câu hỏi này. Hãy trả lời một cách tự nhiên và hữu ích."""
+Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù hợp với câu hỏi này. Hãy trả lời một cách tự nhiên và hữu ích dựa trên kiến thức chung."""
 
         messages.append(HumanMessage(content=current_prompt))
         
@@ -376,18 +429,35 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
             chat_history = self._get_chat_history(db, current_session_id, limit=5)
             print(f"📜 Loaded {len(chat_history)} previous messages from history")
             
-            # Step 3: RAG Retrieval
-            yield {'type': 'status', 'status': 'Đang tìm kiếm thông tin liên quan...'}
-            print(f"🔍 Performing RAG retrieval for: '{message[:50]}...'")
-            context, sources = self._perform_rag_retrieval(message, k=3)
-            print(f"✅ Retrieved {len(sources)} relevant sources")
+            # Step 2.5: Intent Classification (Rule-Based)
+            yield {'type': 'status', 'status': 'Đang phân tích câu hỏi...'}
+            intent, confidence = self.intent_classifier.classify(message)
+            print(f"🎯 Detected intent: {intent.value} (confidence: {confidence:.2f})")
+            
+            # Step 3: Conditional RAG Retrieval
+            context = ""
+            sources = []
+            
+            if self.intent_classifier.should_use_rag(intent):
+                # Only use RAG for relevant queries
+                yield {'type': 'status', 'status': 'Đang tìm kiếm thông tin liên quan...'}
+                print(f"🔍 Performing RAG retrieval for intent: {intent.value}")
+                context, sources = self._perform_rag_retrieval(message, k=3)
+                print(f"✅ Retrieved {len(sources)} relevant sources")
+                
+                # For GENERAL intent, if no good matches, skip RAG
+                if intent == Intent.GENERAL and not sources:
+                    print("⚠️ General question with no relevant sources - using direct LLM")
+            else:
+                # Greeting/Farewell - skip RAG entirely
+                print(f"✋ Skipping RAG for {intent.value}")
             
             # Step 4: LLM Streaming Generation
             yield {'type': 'status', 'status': 'Đang tạo câu trả lời...'}
             yield {'type': 'start', 'session_id': current_session_id}
             
             print("🤖 Generating streaming response from LLM...")
-            prompt_messages = self._build_prompt(message, context, chat_history)
+            prompt_messages = self._build_prompt(message, context, chat_history, intent)
             
             # Stream the response
             full_response = ""
@@ -425,7 +495,7 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
             print(f"❌ Error processing chat: {e}")
             raise RuntimeError(f"Failed to process chat: {e}")
     
-    def process_chat(
+    async def process_chat(
         self,
         db: Session,
         message: str,
@@ -460,14 +530,30 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
             chat_history = self._get_chat_history(db, current_session_id, limit=5)
             print(f"📜 Loaded {len(chat_history)} previous messages from history")
             
-            # Step 3: RAG Retrieval
-            print(f"🔍 Performing RAG retrieval for: '{message[:50]}...'")
-            context, sources = self._perform_rag_retrieval(message, k=3)
-            print(f"✅ Retrieved {len(sources)} relevant sources")
+            # Step 2.5: Intent Classification (Rule-Based)
+            intent, confidence = self.intent_classifier.classify(message)
+            print(f"🎯 Detected intent: {intent.value} (confidence: {confidence:.2f})")
+            
+            # Step 3: Conditional RAG Retrieval
+            context = ""
+            sources = []
+            
+            if self.intent_classifier.should_use_rag(intent):
+                # Only use RAG for relevant queries
+                print(f"🔍 Performing RAG retrieval for intent: {intent.value}")
+                context, sources = self._perform_rag_retrieval(message, k=3)
+                print(f"✅ Retrieved {len(sources)} relevant sources")
+                
+                # For GENERAL intent, if no good matches, skip RAG
+                if intent == Intent.GENERAL and not sources:
+                    print("⚠️ General question with no relevant sources - using direct LLM")
+            else:
+                # Greeting/Farewell - skip RAG entirely
+                print(f"✋ Skipping RAG for {intent.value}")
             
             # Step 4: LLM Generation
             print("🤖 Generating response from LLM...")
-            prompt_messages = self._build_prompt(message, context, chat_history)
+            prompt_messages = self._build_prompt(message, context, chat_history, intent)
             
             response = self.llm.invoke(prompt_messages)
             ai_answer = response.content

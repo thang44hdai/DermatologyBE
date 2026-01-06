@@ -71,7 +71,7 @@ class SchedulerService:
             current_date = now.date()
             current_day_of_week = now.weekday()  # 0=Monday, 6=Sunday
             
-            logger.debug(f"Checking reminders at {now.strftime('%Y-%m-%d %H:%M')}")
+            # logger.debug(f"Checking reminders at {now.strftime('%Y-%m-%d %H:%M')}")
             
             # Get all active reminders
             reminders = db.query(MedicationReminder).filter(
