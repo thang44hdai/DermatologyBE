@@ -23,8 +23,8 @@ class ChatService:
     # For paraphrase-multilingual-MiniLM-L12-v2 with L2 distance:
     # - Lower scores = more similar (0.0 = identical)
     # - Typical range: 0.0 to 2.0
-    # - Threshold 1.2 filters out moderately irrelevant results
-    SIMILARITY_THRESHOLD = 14
+    # - Threshold 1.0 = balanced filtering (recommended)
+    SIMILARITY_THRESHOLD = 1.0  # Changed from 14 (was blocking all results!)
     
     def __init__(self):
         self.vector_db: Optional[FAISS] = None
@@ -44,7 +44,8 @@ class ChatService:
             # Load HuggingFace Embeddings
             print("Loading HuggingFace embeddings...")
             self.embeddings = HuggingFaceEmbeddings(
-                model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+                model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+                encode_kwargs={'normalize_embeddings': True}  # CRITICAL: Must match build_vector_db.py
             )
             
             # Load FAISS Vector Database

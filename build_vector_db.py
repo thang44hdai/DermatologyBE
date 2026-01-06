@@ -89,9 +89,12 @@ def build_vector_db():
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
     splitted_docs = text_splitter.split_documents(documents)
 
-    # 4. Embedding & Save
+    # 4. Embedding & Save  
     print(f"🧠 Đang tải model embedding & tạo Index...")
-    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+    embeddings = HuggingFaceEmbeddings(
+        model_name=EMBEDDING_MODEL_NAME,
+        encode_kwargs={'normalize_embeddings': True}  # CRITICAL: Normalize để scores 0-2
+    )
     db = FAISS.from_documents(splitted_docs, embeddings)
     
     db.save_local(VECTOR_DB_PATH)
