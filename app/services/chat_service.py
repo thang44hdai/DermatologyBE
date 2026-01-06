@@ -23,8 +23,8 @@ class ChatService:
     # For paraphrase-multilingual-MiniLM-L12-v2 with L2 distance:
     # - Lower scores = more similar (0.0 = identical)
     # - Typical range: 0.0 to 2.0
-    # - Threshold 1.0 = balanced filtering (recommended)
-    SIMILARITY_THRESHOLD = 1.0  # Changed from 14 (was blocking all results!)
+    # - Threshold 1.5 = relaxed filtering (good for small databases)
+    SIMILARITY_THRESHOLD = 1.4  # Increased for better recall with limited products
     
     def __init__(self):
         self.vector_db: Optional[FAISS] = None
@@ -45,7 +45,7 @@ class ChatService:
             print("Loading HuggingFace embeddings...")
             self.embeddings = HuggingFaceEmbeddings(
                 model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-                encode_kwargs={'normalize_embeddings': True}  # CRITICAL: Must match build_vector_db.py
+                encode_kwargs={'normalize_embeddings': True} 
             )
             
             # Load FAISS Vector Database
@@ -53,7 +53,7 @@ class ChatService:
             self.vector_db = FAISS.load_local(
                 "faiss_index_store",
                 self.embeddings,
-                allow_dangerous_deserialization=True  # Required for loading pickled data
+                allow_dangerous_deserialization=True 
             )
             
             # Initialize ChatOpenAI (pointing to local llama-server)
