@@ -76,3 +76,11 @@ class UserInDB(UserBase):
 class UserRoleUpdate(BaseModel):
     """Schema for updating user role (admin only)"""
     role: UserRole = Field(..., description="New role for the user")
+
+
+class UserProfileUpdate(BaseModel):
+    """Schema for updating user profile"""
+    fullname: Optional[str] = Field(None, max_length=255)
+    gender: Optional[str] = Field(None, max_length=10)
+    date_of_birth: Optional[datetime] = None
+

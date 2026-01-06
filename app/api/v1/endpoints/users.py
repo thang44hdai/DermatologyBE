@@ -2,9 +2,9 @@
 User API Endpoints - Enhanced with FCM token support
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.core.dependencies import get_db, get_current_active_user, get_current_admin
@@ -220,3 +220,97 @@ async def send_test_notification(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Gửi thông báo thất bại. FCM token có thể đã hết hạn. Thử đăng ký lại token."
         )
+
+
+@router.get("/me", response_model=UserResponse)
+def get_current_user_profile(
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get current user's profile
+    
+    Returns:
+        Current user's profile information including avatar
+    """
+    return current_user
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_current_user_profile(
+    fullname: Optional[str] = Form(None, description="Full name"),
+    gender: Optional[str] = Form(None, description="Gender (Nam/Nữ/Khác)"),
+    date_of_birth: Optional[str] = Form(None, description="Date of birth (YYYY-MM-DD)"),
+    avatar: Optional[UploadFile] = File(None, description="Avatar image file"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Update current user's profile with optional avatar upload
+    
+    **Form Data (all optional):**
+    - fullname: User's full name
+    - gender: Gender (Nam/Nữ/Khác)
+    - date_of_birth: Date of birth in YYYY-MM-DD format
+    - avatar: Avatar image file (JPG, PNG, WEBP)
+    
+    **Returns:**
+        Updated user profile
+        
+    **Example:**
+        ```python
+        files = {'avatar': open('avatar.jpg', 'rb')}
+        data = {'fullname': 'Nguyen Van A', 'gender': 'Nam'}
+        response = requests.put('/users/me', files=files, data=data)
+        ```
+    """
+    from app.utils.firebase_storage import firebase_storage
+    from datetime import datetime as dt
+    
+    # Update avatar if provided
+    if avatar:
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+        if avatar.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid file type. Allowed: {', '.join(allowed_types)}"
+            )
+        
+        # Upload to Firebase Storage
+        try:
+            avatar_url = firebase_storage.upload_file(
+                file=avatar,
+                folder="avatars",
+                filename=f"user_{current_user.id}_{int(dt.now().timestamp())}"
+            )
+            current_user.avatar_url = avatar_url
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to upload avatar: {str(e)}"
+            )
+    
+    # Update other fields
+    if fullname is not None:
+        current_user.fullname = fullname
+    
+    if gender is not None:
+        current_user.gender = gender
+    
+    if date_of_birth is not None:
+        try:
+            # Parse date string to datetime
+            dob = dt.strptime(date_of_birth, "%Y-%m-%d")
+            current_user.date_of_birth = dob
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid date format. Use YYYY-MM-DD"
+            )
+    
+    current_user.updated_at = dt.now()
+    db.commit()
+    db.refresh(current_user)
+    
+    return current_user
+
