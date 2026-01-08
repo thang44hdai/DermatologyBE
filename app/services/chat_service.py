@@ -19,12 +19,15 @@ class ChatService:
     Service class for handling chatbot interactions with RAG (Retrieval-Augmented Generation).
     """
     
+    # RAG Configuration
+    ENABLE_RAG = False  # Set to False to disable RAG temporarily (use LLM only)
+    
     # Similarity threshold for RAG retrieval (L2 distance)
     # For VoVanPhuc/sup-SimCSE-VietNamese-phobert-base with L2 distance:
     # - Lower scores = more similar (0.0 = identical)
     # - Typical range: 0.0 to 2.0
     # - Threshold 1.4 = balanced for Vietnamese semantic search
-    SIMILARITY_THRESHOLD = 1.4  # Tuned for Vietnamese PhoBERT model
+    SIMILARITY_THRESHOLD = 1.0  # Tuned for Vietnamese PhoBERT model
     
     def __init__(self):
         self.vector_db: Optional[FAISS] = None
@@ -439,8 +442,8 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
             context = ""
             sources = []
             
-            if self.intent_classifier.should_use_rag(intent):
-                # Only use RAG for relevant queries
+            if self.ENABLE_RAG and self.intent_classifier.should_use_rag(intent):
+                # Only use RAG if enabled AND relevant queries
                 yield {'type': 'status', 'status': 'Đang tìm kiếm thông tin liên quan...'}
                 print(f"🔍 Performing RAG retrieval for intent: {intent.value}")
                 context, sources = self._perform_rag_retrieval(message, k=3)
@@ -450,8 +453,11 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
                 if intent == Intent.GENERAL and not sources:
                     print("⚠️ General question with no relevant sources - using direct LLM")
             else:
-                # Greeting/Farewell - skip RAG entirely
-                print(f"✋ Skipping RAG for {intent.value}")
+                # RAG disabled or Greeting/Farewell - skip RAG entirely
+                if not self.ENABLE_RAG:
+                    print(f"⚠️ RAG is DISABLED - using direct LLM only")
+                else:
+                    print(f"✋ Skipping RAG for {intent.value}")
             
             # Step 4: LLM Streaming Generation
             yield {'type': 'status', 'status': 'Đang tạo câu trả lời...'}
@@ -539,8 +545,8 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
             context = ""
             sources = []
             
-            if self.intent_classifier.should_use_rag(intent):
-                # Only use RAG for relevant queries
+            if self.ENABLE_RAG and self.intent_classifier.should_use_rag(intent):
+                # Only use RAG if enabled AND relevant queries
                 print(f"🔍 Performing RAG retrieval for intent: {intent.value}")
                 context, sources = self._perform_rag_retrieval(message, k=3)
                 print(f"✅ Retrieved {len(sources)} relevant sources")
@@ -549,8 +555,11 @@ Lưu ý: Không có sản phẩm cụ thể nào từ cơ sở dữ liệu phù 
                 if intent == Intent.GENERAL and not sources:
                     print("⚠️ General question with no relevant sources - using direct LLM")
             else:
-                # Greeting/Farewell - skip RAG entirely
-                print(f"✋ Skipping RAG for {intent.value}")
+                # RAG disabled or Greeting/Farewell - skip RAG entirely
+                if not self.ENABLE_RAG:
+                    print(f"⚠️ RAG is DISABLED - using direct LLM only")
+                else:
+                    print(f"✋ Skipping RAG for {intent.value}")
             
             # Step 4: LLM Generation
             print("🤖 Generating response from LLM...")
