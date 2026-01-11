@@ -351,6 +351,14 @@ services:
 
 ---
 
+## Tài liệu
+
+Báo cáo đồ án và slide thuyết trình:
+
+[Google Drive - Tài liệu đồ án](https://drive.google.com/drive/folders/1cOqseLN7UiOqk6o1cuH6niqO6yhKlLDZ?usp=sharing)
+
+---
+
 ## Bảo mật
 
 - JWT authentication với access/refresh tokens
