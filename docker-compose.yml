@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # --- NGINX PROXY MANAGER (Quản lý SSL & Tên miền) ---
+  nginx-proxy:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: dermatology_proxy
+    restart: unless-stopped
+    ports:
+      - '80:80'   # Cổng cho HTTP (Let's Encrypt dùng để xác thực)
+      - '443:443' # Cổng cho HTTPS (SSL)
+      - '81:81'   # Cổng vào trang Admin để bạn setup tên miền
+    volumes:
+      - ./proxy_data:/data
+      - ./proxy_letsencrypt:/etc/letsencrypt
+    networks:
+      - dermatology_network
+
+  # --- FASTAPI APPLICATION ---
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dermatology-api:cpu-latest
+    container_name: dermatology_app
+    restart: unless-stopped
+    # ports: 
+    #   - "8000:8000" # Không cần mở port ra ngoài nữa, Proxy sẽ lo
+    expose:
+      - "8000" 
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-dermatology_user}:${MYSQL_PASSWORD:-dermatology_pass}@mysql:3306/${MYSQL_DATABASE:-dermatology_db}
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - LLM_SERVER_URL=${LLM_SERVER_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+      - OMP_NUM_THREADS=2
+      - MKL_NUM_THREADS=2
+      - OPENBLAS_NUM_THREADS=2
+    volumes:
+      - ./.env:/app/.env
+      - ./firebase-service-account.json:/app/firebase-service-account.json
+      - ./uploads:/app/uploads
+      - ./faiss_index_store:/app/faiss_index_store
+      - ./models:/app/models
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - dermatology_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+
+  # --- MYSQL & REDIS (Giữ nguyên như cũ) ---
+  mysql:
+    image: mysql:8.0
+    container_name: dermatology_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-dermatology_db}
+      MYSQL_USER: ${MYSQL_USER:-dermatology_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dermatology_pass}
+      MYSQL_INNODB_BUFFER_POOL_SIZE: ${MYSQL_BUFFER_POOL_SIZE:-256M}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - dermatology_network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: dermatology_redis
+    restart: unless-stopped
+    networks:
+      - dermatology_network
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+networks:
+  dermatology_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  proxy_data:
+  proxy_letsencrypt:

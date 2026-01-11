@@ -1,0 +1,83 @@
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: dermatology_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-dermatology_db}
+      MYSQL_USER: ${MYSQL_USER:-dermatology_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dermatology_pass}
+    ports:
+      - "3307:3306" # Changed from 3306 to avoid port conflict
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - dermatology_network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application (Development - Simplified)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev # Use simplified Dockerfile
+    image: dermatology-api:dev
+    container_name: dermatology_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Database
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-dermatology_user}:${MYSQL_PASSWORD:-dermatology_pass}@mysql:3306/${MYSQL_DATABASE:-dermatology_db}
+
+      # App Config
+      - DEBUG=${DEBUG:-True}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+
+      # AI/LLM Config
+      - LLM_SERVER_URL=${LLM_SERVER_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+      # AWS Specific
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+
+    volumes:
+      - ./uploads:/app/uploads
+      - ./faiss_index_store:/app/faiss_index_store
+      - ./models:/app/models
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - dermatology_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: dermatology_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - dermatology_network
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  dermatology_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
