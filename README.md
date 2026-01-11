@@ -1,75 +1,167 @@
-# Dermatology Backend API
+# PharmaAI - Backend API
 
-API backend cho hệ thống chẩn đoán bệnh da bằng AI sử dụng FastAPI và Deep Learning.
+**Đồ án tốt nghiệp Đại học** | Học viện Công nghệ Bưu chính Viễn thông (PTIT)
 
-## 🏗️ Cấu trúc dự án
+**Điểm số: 8.8/10**
+
+---
+
+## Giới thiệu
+
+PharmaAI là hệ thống hỗ trợ chẩn đoán bệnh da liễu và tư vấn dược phẩm sử dụng trí tuệ nhân tạo. Backend API được xây dựng trên nền tảng FastAPI, tích hợp các mô hình học sâu (Deep Learning) cho việc phân loại bệnh da và chatbot RAG (Retrieval-Augmented Generation) sử dụng LLM để tư vấn thuốc.
+
+Hệ thống cung cấp các chức năng chính:
+- Phân loại bệnh da liễu từ hình ảnh sử dụng mô hình CNN
+- Chatbot tư vấn dược phẩm với RAG + LLM (Qwen3-4B fine-tuned)
+- Quản lý thuốc, nhà thuốc, thương hiệu và danh mục
+- Nhắc nhở uống thuốc với push notification
+- Xác thực đăng nhập bằng Google/Facebook OAuth2
+- Real-time chat qua WebSocket
+
+---
+
+## Các thành phần hệ thống
+
+Dự án PharmaAI bao gồm nhiều repository liên quan:
+
+| Repository | Mô tả | Công nghệ |
+|------------|-------|-----------|
+| **DermatologyBE** (repo này) | Backend API chính | FastAPI, SQLAlchemy, PyTorch |
+| **PharmaAI-Mobile** | Ứng dụng Android | Kotlin, Jetpack Compose, Retrofit |
+| **SkinDisease-Classification** | Fine-tune model phân loại ảnh bệnh da | PyTorch, EfficientNet, Transfer Learning |
+| **PharmaAI-LLM** | Fine-tune model Qwen3-4B chatbot | LLaMA.cpp, LoRA, Hugging Face |
+
+---
+
+## Kiến trúc hệ thống
+
+```
+                                    +------------------+
+                                    |   Mobile App     |
+                                    |   (Android)      |
+                                    +--------+---------+
+                                             |
+                                             | HTTPS/WSS
+                                             v
++------------------+              +----------+---------+              +------------------+
+|   Firebase       |<----------->|   Nginx Proxy      |<------------>|   LLM Server     |
+|   - Storage      |              |   Manager (SSL)    |              |   (Qwen3-4B)     |
+|   - FCM          |              +----------+---------+              +------------------+
++------------------+                         |
+                                             v
+                              +-----------------------------+
+                              |      FastAPI Backend        |
+                              |  +------------------------+ |
+                              |  |   AI Service           | |
+                              |  |   - Skin Classification| |
+                              |  |   - RAG Chat Service   | |
+                              |  +------------------------+ |
+                              |  +------------------------+ |
+                              |  |   Business Logic       | |
+                              |  |   - Medicine, Pharmacy | |
+                              |  |   - Reminders, Auth    | |
+                              |  +------------------------+ |
+                              +-------------+--------------+
+                                            |
+                        +-------------------+-------------------+
+                        v                                       v
+              +-----------------+                     +-----------------+
+              |     MySQL       |                     |     Redis       |
+              |   (Database)    |                     |   (Cache)       |
+              +-----------------+                     +-----------------+
+```
+
+---
+
+## Công nghệ sử dụng
+
+**Backend Framework**
+- FastAPI - Web framework hiệu năng cao
+- SQLAlchemy - ORM cho database
+- Pydantic - Data validation và serialization
+
+**AI/ML**
+- PyTorch - Deep learning framework
+- LangChain - Framework cho LLM applications
+- FAISS - Vector similarity search
+- HuggingFace Transformers - Pre-trained models
+
+**Database & Cache**
+- MySQL 8.0 - Relational database
+- Redis - Caching và rate limiting
+
+**Infrastructure**
+- Docker & Docker Compose - Containerization
+- Nginx Proxy Manager - Reverse proxy với SSL
+- Firebase - Storage và Push Notification
+
+**Authentication**
+- JWT (JSON Web Tokens)
+- OAuth2 (Google, Facebook)
+- bcrypt - Password hashing
+
+---
+
+## Cấu trúc thư mục
 
 ```
 DermatologyBE/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py                 # Entry point của ứng dụng
-│   ├── config/
-│   │   ├── __init__.py
-│   │   └── settings.py         # Cấu hình & biến môi trường
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── dependencies.py     # Dependency injection
-│   │   └── security.py         # Authentication & security
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── ai_model.py         # Định nghĩa model AI
-│   │   └── database.py         # Database models (SQLAlchemy)
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   ├── prediction.py       # Pydantic schemas cho prediction
-│   │   └── user.py             # Pydantic schemas cho user
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── v1/
-│   │       ├── __init__.py
-│   │       ├── endpoints/
-│   │       │   ├── __init__.py
-│   │       │   ├── prediction.py   # AI prediction endpoints
-│   │       │   ├── users.py        # User CRUD endpoints
-│   │       │   └── health.py       # Health check
-│   │       └── router.py           # Router tổng hợp
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── ai_service.py       # Logic xử lý AI prediction
-│   │   └── user_service.py     # Business logic cho users
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── image_processing.py # Xử lý ảnh
-│   │   └── constants.py        # Constants & mappings
-│   └── db/
-│       ├── __init__.py
-│       └── session.py          # Database session
-├── tests/
-│   ├── __init__.py
-│   └── test_api.py
+│   ├── api/v1/endpoints/      # API endpoints
+│   │   ├── auth.py            # Authentication
+│   │   ├── prediction.py      # AI skin prediction
+│   │   ├── chat.py            # RAG chatbot
+│   │   ├── medicines.py       # Medicine management
+│   │   ├── pharmacy.py        # Pharmacy management
+│   │   ├── reminders.py       # Medication reminders
+│   │   └── users.py           # User management
+│   ├── config/                # Configuration
+│   ├── core/                  # Core utilities
+│   │   ├── dependencies.py    # Dependency injection
+│   │   ├── security.py        # JWT & OAuth2
+│   │   └── websocket_manager.py
+│   ├── models/                # SQLAlchemy models
+│   ├── schemas/               # Pydantic schemas
+│   ├── services/              # Business logic
+│   │   ├── ai_service.py      # AI prediction
+│   │   ├── chat_service.py    # RAG chatbot
+│   │   ├── medicine_service.py
+│   │   ├── notification_service.py
+│   │   └── scheduler_service.py
+│   ├── utils/                 # Utilities
+│   │   ├── firebase_storage.py
+│   │   └── file_upload.py
+│   └── main.py                # Application entry
 ├── resources/
-│   ├── models/
-│   │   └── skin_disease_model.pth
-│   └── data/
-│       └── train_processed.csv
-├── .env                        # Environment variables (không commit)
-├── .env.example               # Template cho .env
-├── .gitignore
-├── requirements.txt           # Python dependencies
-└── README.md
+│   └── models/                # AI model weights
+├── faiss_index_store/         # Vector database
+├── docker-compose.yml
+├── Dockerfile
+├── requirements.txt
+└── requirements-cpu.txt       # CPU-only dependencies
 ```
 
-## 🚀 Cài đặt
+---
 
-### 1. Clone repository
+## Hướng dẫn cài đặt
+
+### Yêu cầu hệ thống
+
+- Python 3.11+
+- MySQL 8.0+
+- Redis (optional, for caching)
+- CUDA 11.8+ (optional, for GPU inference)
+
+### Cài đặt môi trường phát triển
+
+**1. Clone repository**
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/your-username/DermatologyBE.git
 cd DermatologyBE
 ```
 
-### 2. Tạo virtual environment
+**2. Tạo virtual environment**
 
 ```bash
 python -m venv venv
@@ -77,273 +169,215 @@ python -m venv venv
 # Windows
 venv\Scripts\activate
 
-# Linux/Mac
+# Linux/macOS
 source venv/bin/activate
 ```
 
-### 3. Cài đặt dependencies
+**3. Cài đặt dependencies**
 
 ```bash
+# CPU only (recommended for development)
+pip install -r requirements-cpu.txt
+
+# With CUDA support
 pip install -r requirements.txt
 ```
 
-### 4. Cấu hình Database MySQL với XAMPP
+**4. Cấu hình biến môi trường**
 
-#### Bước 1: Khởi động XAMPP
-1. Mở XAMPP Control Panel
-2. Start **Apache** và **MySQL**
-
-#### Bước 2: Tạo Database
-Có 2 cách để tạo database:
-
-**Cách 1: Sử dụng phpMyAdmin**
-1. Mở trình duyệt và truy cập: http://localhost/phpmyadmin
-2. Click vào tab "SQL"
-3. Copy và paste nội dung từ file `database_setup.sql`
-4. Click "Go" để thực thi
-
-**Cách 2: Sử dụng MySQL Command Line**
 ```bash
-# Mở terminal và kết nối MySQL
-mysql -u root -p
-# (Nhấn Enter nếu không có password)
-
-# Chạy SQL script
-source database_setup.sql
-```
-
-#### Bước 3: Cấu hình file .env
-```bash
-# Copy file .env.example thành .env (nếu có)
 cp .env.example .env
-
-# File .env đã được cấu hình sẵn với MySQL:
-DATABASE_URL=mysql+pymysql://root:@localhost:3306/dermatology_db
 ```
 
-**Lưu ý:**
-- Nếu MySQL của bạn có password, sửa thành: `mysql+pymysql://root:YOUR_PASSWORD@localhost:3306/dermatology_db`
-- Nếu MySQL chạy trên port khác 3306, thay đổi port number tương ứng
+Chỉnh sửa file `.env`:
 
-#### Bước 4: Tạo Tables trong Database
-```bash
-# Chạy script để tạo tables tự động
-python init_db.py
+```env
+# Database
+DATABASE_URL=mysql+pymysql://root:password@localhost:3306/dermatology_db
 
-# Nếu muốn xóa và tạo lại tables (CẢNH BÁO: Sẽ mất dữ liệu!)
-python init_db.py --drop
+# Security
+SECRET_KEY=your-secret-key-change-in-production
+
+# Firebase
+FIREBASE_CREDENTIALS_PATH=firebase-service-account.json
+
+# LLM Server (optional)
+LLM_SERVER_URL=http://localhost:8080/v1
+
+# OAuth2
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 ```
 
-### 5. Cấu hình môi trường
+**5. Khởi tạo database**
 
 ```bash
-# Copy file .env.example thành .env (nếu chưa có)
-# File .env đã được cấu hình sẵn, bạn có thể chỉnh sửa nếu cần
+# Tạo database trong MySQL
+mysql -u root -p -e "CREATE DATABASE dermatology_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# Tables sẽ được tạo tự động khi chạy ứng dụng
 ```
 
-### 6. Di chuyển model file
+**6. Thêm model AI**
 
+Copy file model vào thư mục:
 ```bash
-# Di chuyển file model vào thư mục đúng
-move skin_disease_model.pth resources\models\skin_disease_fusion_model_final.pth
+cp skin_disease_fusion_model_final.pth resources/models/
 ```
 
-### 7. Chạy ứng dụng
+**7. Build Vector Database (cho chatbot)**
 
 ```bash
-# Development mode (auto-reload)
-python app/main.py
+python build_vector_db.py
+```
 
-# Hoặc dùng uvicorn trực tiếp
+**8. Chạy ứng dụng**
+
+```bash
+# Development mode
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## 📚 API Documentation
+Truy cập API documentation: http://localhost:8000/docs
 
-Sau khi chạy server, truy cập:
+---
 
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+## Hướng dẫn Deploy
 
-## 🔌 API Endpoints
+### Deploy với Docker (Production)
 
-### Health Check
-- `GET /api/v1/` - Health check
-- `GET /api/v1/health` - Health check (alternative)
+**1. Chuẩn bị server**
 
-### 🔐 Authentication
-- `POST /api/v1/auth/register` - Đăng ký user mới
-- `POST /api/v1/auth/login` - Đăng nhập (form-data)
-- `POST /api/v1/auth/login/json` - Đăng nhập (JSON)
-- `GET /api/v1/auth/me` - Lấy thông tin user hiện tại (🔒 Protected)
-- `GET /api/v1/auth/test-token` - Test access token (🔒 Protected)
+- Ubuntu 22.04 LTS
+- Docker và Docker Compose
+- Domain với SSL certificate
 
-### Prediction
-- `POST /api/v1/prediction/predict` - Chẩn đoán bệnh da từ ảnh (🔒 Protected)
-
-### Users (CRUD)
-- `POST /api/v1/users/` - Tạo user mới (Public)
-- `GET /api/v1/users/{user_id}` - Lấy thông tin user (🔒 Protected)
-- `GET /api/v1/users/` - Lấy danh sách users (🔒 Protected)
-- `DELETE /api/v1/users/{user_id}` - Xóa user (🔒 Protected)
-
-**🔒 Protected** = Yêu cầu authentication token
-
-## 🔐 Authentication
-
-Hệ thống sử dụng JWT (JSON Web Tokens) để xác thực. Xem chi tiết tại [AUTHENTICATION.md](AUTHENTICATION.md)
-
-### Quick Start với Authentication
-
-```python
-import requests
-
-BASE_URL = "http://localhost:8000/api/v1"
-
-# 1. Register
-response = requests.post(
-    f"{BASE_URL}/auth/register",
-    json={
-        "email": "user@example.com",
-        "username": "username",
-        "password": "password123"
-    }
-)
-print(response.json())
-
-# 2. Login
-response = requests.post(
-    f"{BASE_URL}/auth/login/json",
-    json={"username": "username", "password": "password123"}
-)
-token_data = response.json()
-access_token = token_data["access_token"]
-
-# 3. Use token for protected endpoints
-headers = {"Authorization": f"Bearer {access_token}"}
-response = requests.get(f"{BASE_URL}/auth/me", headers=headers)
-print(response.json())
-```
-
-## 🧪 Testing
+**2. Clone và cấu hình**
 
 ```bash
-# Test Authentication System
-python test_auth.py
+git clone https://github.com/your-username/DermatologyBE.git
+cd DermatologyBE
 
-# Chạy tests
-pytest tests/
-
-# Với coverage
-pytest --cov=app tests/
+# Tạo file .env
+cp .env.example .env
+nano .env
 ```
 
-## 📝 Ví dụ sử dụng
+**3. Thêm Firebase credentials**
 
-### Complete Flow với Authentication
-
-```python
-import requests
-
-BASE_URL = "http://localhost:8000/api/v1"
-
-# 1. Login để lấy token
-response = requests.post(
-    f"{BASE_URL}/auth/login/json",
-    json={"username": "username", "password": "password123"}
-)
-access_token = response.json()["access_token"]
-
-# 2. Predict Disease với token
-url = f"{BASE_URL}/prediction/predict"
-headers = {"Authorization": f"Bearer {access_token}"}
-files = {'file': open('skin_image.jpg', 'rb')}
-response = requests.post(url, headers=headers, files=files)
-print(response.json())
-```
-
-Response:
-```json
-{
-  "success": true,
-  "label_en": "acne",
-  "label_vi": "Mụn trứng cá",
-  "confidence": 0.95,
-  "all_predictions": [
-    {
-      "label_en": "acne",
-      "label_vi": "Mụn trứng cá",
-      "confidence": 0.95
-    },
-    ...
-  ]
-}
-```
-
-## 🛠️ Technologies
-
-- **FastAPI** - Modern web framework
-- **PyTorch** - Deep learning framework
-- **SQLAlchemy** - ORM
-- **Pydantic** - Data validation
-- **Uvicorn** - ASGI server
-
-## 🔒 Security
-
-- JWT authentication
-- Password hashing với bcrypt
-- CORS middleware
-- File upload validation
-
-## 📦 Database
-
-### MySQL với XAMPP (Recommended)
-Project đã được cấu hình để sử dụng MySQL với XAMPP:
-
-**Cấu hình hiện tại:**
-```env
-DATABASE_URL=mysql+pymysql://root:@localhost:3306/dermatology_db
-```
-
-**Tables được tạo tự động:**
-- `users` - Quản lý người dùng và authentication
-- `prediction_history` - Lưu lịch sử chẩn đoán
-
-**Khởi tạo/Reset Database:**
 ```bash
-# Tạo tables
-python init_db.py
-
-# Xóa và tạo lại (CẢNH BÁO: Mất dữ liệu!)
-python init_db.py --drop
+# Upload firebase-service-account.json lên server
+scp firebase-service-account.json user@server:~/DermatologyBE/
 ```
 
-### SQLite (Alternative)
-Để chuyển sang SQLite cho development:
-```env
-DATABASE_URL=sqlite:///./dermatology.db
+**4. Build và chạy**
+
+```bash
+# Build image
+docker compose build
+
+# Start services
+docker compose up -d
+
+# Xem logs
+docker compose logs -f app
 ```
 
-### PostgreSQL (Production)
-Để chuyển sang PostgreSQL:
-1. Cài đặt: `pip install psycopg2-binary`
-2. Cập nhật `DATABASE_URL` trong `.env`:
-   ```
-   DATABASE_URL=postgresql://user:password@localhost/dbname
-   ```
+**5. Cấu hình Nginx Proxy Manager**
 
-## 🤝 Contributing
+Truy cập `http://your-server-ip:81` để cấu hình:
+- Domain name
+- SSL certificate (Let's Encrypt)
+- WebSocket support
 
-1. Fork repository
-2. Tạo feature branch
-3. Commit changes
-4. Push to branch
-5. Create Pull Request
+**6. Khởi tạo database**
 
-## 📄 License
+```bash
+# Import data (optional)
+docker cp backup.sql dermatology_mysql:/tmp/
+docker compose exec mysql sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD" dermatology_db < /tmp/backup.sql'
 
-[Your License Here]
+# Tạo admin user
+docker cp create_admin.py dermatology_app:/app/
+docker compose exec app python create_admin.py
+```
 
-## 👥 Authors
+### Docker Compose Services
 
-[Your Name]
+```yaml
+services:
+  nginx-proxy:      # Reverse proxy với SSL
+  app:              # FastAPI application
+  mysql:            # MySQL database
+  redis:            # Redis cache
+```
+
+---
+
+## API Endpoints
+
+### Authentication
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| POST | `/auth/register` | Đăng ký tài khoản |
+| POST | `/auth/login` | Đăng nhập |
+| POST | `/auth/google` | Đăng nhập với Google |
+| POST | `/auth/refresh` | Refresh access token |
+
+### AI Prediction
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| POST | `/prediction/predict` | Phân loại bệnh da từ ảnh |
+| GET | `/prediction/history` | Lịch sử chẩn đoán |
+
+### Chatbot
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| POST | `/chat/` | Gửi tin nhắn chat |
+| WebSocket | `/chat/ws` | Real-time chat |
+| GET | `/chat/sessions` | Danh sách phiên chat |
+
+### Medicine & Pharmacy
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| GET | `/medicines/` | Danh sách thuốc |
+| GET | `/pharmacies/` | Danh sách nhà thuốc |
+| GET | `/pharmacies/nearby/search` | Tìm nhà thuốc gần đây |
+
+### User Profile
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| GET | `/users/me` | Thông tin profile |
+| PUT | `/users/me` | Cập nhật profile và avatar |
+
+---
+
+## Bảo mật
+
+- JWT authentication với access/refresh tokens
+- Password hashing sử dụng bcrypt
+- CORS middleware cho cross-origin requests
+- Rate limiting để chống DDoS
+- Input validation với Pydantic
+- File upload validation (type, size)
+
+---
+
+## Tác giả
+
+**Nguyen Quang Thang**
+
+**Bui Hai Nam**
+
+Sinh viên Học viện Công nghệ Bưu chính Viễn thông (PTIT)
+
+Khoa Công nghệ Thông tin
+
+Niên khóa 2021-2025
+
+---
+
+## Giấy phép
+
+Dự án này được phát triển cho mục đích học thuật và nghiên cứu.
+
+Copyright 2025 - Học viện Công nghệ Bưu chính Viễn thông (PTIT)
